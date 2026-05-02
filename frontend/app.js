@@ -609,7 +609,7 @@ const updateMicUI = (active) => {
 };
 
 // ===== VOICE ROUTING =====
-const routeVoiceCommand = (transcript) => {
+const routeVoiceCommand = async (transcript) => {
     const t = transcript.toLowerCase().trim();
 
     // SOS

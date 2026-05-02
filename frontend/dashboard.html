@@ -53,14 +53,14 @@
 <!-- FULL-WIDTH MAIN CONTENT (no sidebar) -->
 <main class="w-full min-h-screen">
     <!-- TopAppBar Navigation -->
-    <header class="flex justify-between items-center w-full px-12 py-8 bg-[#F5F5F0] dark:bg-[#1A1A1A]">
+    <header class="flex flex-col sm:flex-row justify-between items-center w-full px-4 sm:px-8 lg:px-12 py-4 sm:py-6 lg:py-8 bg-[#F5F5F0] dark:bg-[#1A1A1A] gap-3 sm:gap-0">
         <div class="flex items-center gap-4">
             <button onclick="history.back()" class="flex items-center gap-2 font-['Work_Sans'] uppercase tracking-widest text-[12px] font-bold hover:bg-[#1A1A1A] hover:text-[#FFFFFF] px-4 py-2 transition-colors">
                 <span class="material-symbols-outlined text-sm" data-icon="arrow_back">arrow_back</span>
                 BACK TO SATHI
             </button>
         </div>
-        <div class="text-4xl font-black font-['Newsreader'] tracking-tighter text-[#1A1A1A] dark:text-[#FFFFFF] flex flex-col items-center">
+        <div class="text-2xl sm:text-3xl lg:text-4xl font-black font-['Newsreader'] tracking-tighter text-[#1A1A1A] dark:text-[#FFFFFF] flex flex-col items-center">
             SATHI
             <span id="watching-label" class="font-['Work_Sans'] text-[10px] uppercase tracking-widest font-normal opacity-50 mt-1">Watching over: —</span>
         </div>
@@ -81,11 +81,11 @@
     </header>
 
     <!-- Main Canvas -->
-    <div class="px-12 pb-24 grid grid-cols-12 gap-0 border-t-2 border-[#1A1A1A]">
+    <div class="px-4 sm:px-8 lg:px-12 pb-12 lg:pb-24 grid grid-cols-1 lg:grid-cols-12 gap-0 border-t-2 border-[#1A1A1A]">
         
         <!-- Left Column: Feed & History -->
-        <section class="col-span-8 bg-[#FFFFFF] p-12 border-r-2 border-[#1A1A1A] min-h-screen">
-            <div class="flex justify-between items-end mb-8">
+        <section class="col-span-1 lg:col-span-8 bg-[#FFFFFF] p-4 sm:p-8 lg:p-12 lg:border-r-2 border-[#1A1A1A] min-h-[50vh] lg:min-h-screen">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 sm:mb-8 gap-3 sm:gap-0">
                 <h1 class="font-headline-lg text-display-xl leading-none">FEED</h1>
                 <div class="flex gap-4" id="filter-bar">
                     <button onclick="filterFeed('today')" class="filter-btn font-label-caps bg-[#1A1A1A] text-[#FFFFFF] px-6 py-2 transition-none">TODAY</button>
@@ -112,7 +112,7 @@
         </section>
 
         <!-- Right Column: HUD & Alerts -->
-        <section class="col-span-4 bg-[#F5F5F0] p-12 space-y-24 overflow-y-auto max-h-screen">
+        <section class="col-span-1 lg:col-span-4 bg-[#F5F5F0] p-4 sm:p-8 lg:p-12 space-y-12 lg:space-y-24 lg:overflow-y-auto lg:max-h-screen">
             
             <!-- SOS ALERT SECTION -->
             <div id="sos-section" style="display: none;">
@@ -181,9 +181,9 @@
                     <h2 class="font-headline-md text-headline-md">DAILY REPORT</h2>
                     <span class="font-label-caps opacity-50">LAST 24H</span>
                 </div>
-                <div id="daily-report" class="grid grid-cols-2 gap-4">
-                    <div class="bg-[#FFFFFF] p-6 text-center">
-                        <div class="text-3xl font-bold" id="report-safety-score">--</div>
+                <div id="daily-report" class="grid grid-cols-2 gap-2 sm:gap-4">
+                    <div class="bg-[#FFFFFF] p-3 sm:p-6 text-center">
+                        <div class="text-xl sm:text-3xl font-bold" id="report-safety-score">--</div>
                         <div class="text-[10px] font-bold uppercase tracking-widest opacity-50 mt-2">SAFETY SCORE</div>
                     </div>
                     <div class="bg-[#FFFFFF] p-6 text-center">
@@ -215,7 +215,7 @@
                     <h2 class="font-headline-md text-headline-md">SAFE ZONE</h2>
                     <span id="geofence-status" class="font-label-caps opacity-50">NOT SET</span>
                 </div>
-                <div class="bg-[#FFFFFF] p-8 space-y-4">
+                <div class="bg-[#FFFFFF] p-4 sm:p-8 space-y-4">
                     <div>
                         <label class="text-[10px] font-bold uppercase tracking-widest block mb-1">ZONE LABEL</label>
                         <input id="geo-label" type="text" placeholder="e.g. Home, School, Office" class="w-full border-2 border-[#1A1A1A] p-3 text-sm outline-none focus:-translate-y-0.5 focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
@@ -234,7 +234,7 @@
                         <label class="text-[10px] font-bold uppercase tracking-widest block mb-1">RADIUS (METERS)</label>
                         <input id="geo-radius" type="number" value="500" min="50" max="10000" class="w-full border-2 border-[#1A1A1A] p-3 text-sm outline-none focus:-translate-y-0.5 focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
                     </div>
-                    <div class="flex gap-2">
+                    <div class="flex flex-col sm:flex-row gap-2">
                         <button id="btn-geo-current" class="flex-1 border-2 border-[#1A1A1A] py-3 font-label-caps hover:bg-[#1A1A1A] hover:text-white transition-colors">📍 USE CURRENT LOCATION</button>
                         <button id="btn-geo-save" class="flex-1 bg-[#1A1A1A] text-white py-3 font-label-caps hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">SAVE ZONE</button>
                     </div>

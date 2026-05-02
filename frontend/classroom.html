@@ -50,14 +50,14 @@
 <body class="font-body-md selection:bg-primary selection:text-on-primary min-h-screen flex flex-col">
 
     <!-- TopAppBar Navigation -->
-    <header class="flex justify-between items-center w-full px-12 py-8 bg-[#F5F5F0] border-b-2 border-[#1A1A1A] shrink-0">
+    <header class="flex flex-col sm:flex-row justify-between items-center w-full px-4 sm:px-8 lg:px-12 py-4 sm:py-6 lg:py-8 bg-[#F5F5F0] border-b-2 border-[#1A1A1A] shrink-0 gap-3 sm:gap-0">
         <div class="flex items-center gap-4">
             <a id="btn-back" href="/" class="flex items-center gap-2 font-['Work_Sans'] uppercase tracking-widest text-[12px] font-bold hover:bg-[#1A1A1A] hover:text-[#FFFFFF] px-4 py-2 transition-colors border border-transparent hover:border-[#1A1A1A]">
                 <span class="material-symbols-outlined text-sm" data-icon="arrow_back">arrow_back</span>
                 BACK TO SATHI
             </a>
         </div>
-        <div class="text-4xl font-black font-['Newsreader'] tracking-tighter text-[#1A1A1A] flex flex-col items-center">
+        <div class="text-2xl sm:text-3xl lg:text-4xl font-black font-['Newsreader'] tracking-tighter text-[#1A1A1A] flex flex-col items-center">
             CLASSROOM
             <span class="font-['Work_Sans'] text-[10px] uppercase tracking-widest font-normal opacity-50 mt-1">Audio Monitoring</span>
         </div>
@@ -69,15 +69,15 @@
         </div>
     </header>
 
-    <main class="grid grid-cols-12 flex-1 overflow-hidden">
+    <main class="grid grid-cols-1 lg:grid-cols-12 flex-1 overflow-hidden">
         <!-- Left Side: Controls & Status -->
-        <section class="col-span-4 border-r-2 border-[#1A1A1A] bg-[#FFFFFF] p-12 flex flex-col justify-between overflow-y-auto">
+        <section class="col-span-1 lg:col-span-4 lg:border-r-2 border-[#1A1A1A] bg-[#FFFFFF] p-4 sm:p-8 lg:p-12 flex flex-col justify-between overflow-y-auto">
             <div>
                 <h2 class="font-headline-lg text-4xl mb-4">MONITOR</h2>
                 <p class="font-body-lg text-on-surface-variant mb-12">AI listens and classifies classroom events every 60 seconds.</p>
                 
                 <div class="border-2 border-[#1A1A1A] p-8 mb-8 text-center bg-[#F5F5F0]">
-                    <div id="timer-value" class="font-headline-lg text-8xl font-bold tracking-tighter text-[#1A1A1A] opacity-30">60</div>
+                    <div id="timer-value" class="font-headline-lg text-5xl sm:text-6xl lg:text-8xl font-bold tracking-tighter text-[#1A1A1A] opacity-30">60</div>
                     <div class="font-label-caps tracking-widest mt-4">SECONDS UNTIL NEXT ANALYSIS</div>
                 </div>
 
@@ -95,7 +95,7 @@
         </section>
 
         <!-- Right Side: Feed -->
-        <section class="col-span-8 bg-[#F5F5F0] p-12 flex flex-col h-full overflow-hidden">
+        <section class="col-span-1 lg:col-span-8 bg-[#F5F5F0] p-4 sm:p-8 lg:p-12 flex flex-col h-full overflow-hidden">
              <div class="flex justify-between items-end mb-8 border-b-2 border-[#1A1A1A] pb-4 shrink-0">
                 <h2 class="font-headline-lg text-3xl">ACTIVITY LOG</h2>
             </div>
