@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#000000">
+    <meta name="description" content="SATHI — An AI-powered accessibility companion for the visually impaired, hearing impaired, and elderly. Real-time scene descriptions, SOS alerts, and multilingual support.">
+    <title>SATHI — Accessibility Companion</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&family=Work+Sans:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1A1A1A',
+                        background: '#F5F5F0',
+                        surface: '#FFFFFF',
+                        error: '#FF3B30',
+                        warning: '#FFCC00',
+                        safe: '#34C759'
+                    },
+                    fontFamily: {
+                        newsreader: ['Newsreader', 'serif'],
+                        worksans: ['"Work Sans"', 'sans-serif'],
+                    },
+                    boxShadow: {
+                        'brutal': '4px 4px 0px 0px rgba(0,0,0,1)',
+                        'brutal-lg': '8px 8px 0px 0px rgba(0,0,0,1)',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-primary font-worksans overflow-hidden w-full h-full touch-manipulation">
+    <!-- Full-viewport app — no scroll -->
+    <div id="app" class="w-full h-full" role="application" aria-label="SATHI Accessibility Companion"></div>
+
+    <!-- TensorFlow.js and COCO-SSD for real-time bounding boxes -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>

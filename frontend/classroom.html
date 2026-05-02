@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Classroom Mode — SATHI</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&family=Work+Sans:wght@100..900&display=swap" rel="stylesheet"/>
+    
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ba1a1a",
+                        "on-error": "#ffffff",
+                        "primary": "#000000",
+                        "on-primary": "#ffffff",
+                        "surface-variant": "#e5e2e1",
+                        "on-surface-variant": "#444748",
+                        "surface-container-high": "#ebe7e6",
+                        "surface-container": "#f1edec",
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0rem",
+                        "lg": "0rem",
+                        "xl": "0rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Work Sans"],
+                        "headline-md": ["Newsreader"],
+                        "body-md": ["Work Sans"],
+                        "headline-lg": ["Newsreader"],
+                        "label-caps": ["Work Sans"],
+                        "display-xl": ["Newsreader"]
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        body { background-color: #F5F5F0; color: #1A1A1A; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="font-body-md selection:bg-primary selection:text-on-primary min-h-screen flex flex-col">
+
+    <!-- TopAppBar Navigation -->
+    <header class="flex justify-between items-center w-full px-12 py-8 bg-[#F5F5F0] border-b-2 border-[#1A1A1A] shrink-0">
+        <div class="flex items-center gap-4">
+            <a id="btn-back" href="/" class="flex items-center gap-2 font-['Work_Sans'] uppercase tracking-widest text-[12px] font-bold hover:bg-[#1A1A1A] hover:text-[#FFFFFF] px-4 py-2 transition-colors border border-transparent hover:border-[#1A1A1A]">
+                <span class="material-symbols-outlined text-sm" data-icon="arrow_back">arrow_back</span>
+                BACK TO SATHI
+            </a>
+        </div>
+        <div class="text-4xl font-black font-['Newsreader'] tracking-tighter text-[#1A1A1A] flex flex-col items-center">
+            CLASSROOM
+            <span class="font-['Work_Sans'] text-[10px] uppercase tracking-widest font-normal opacity-50 mt-1">Audio Monitoring</span>
+        </div>
+        <div class="flex items-center gap-6">
+             <div id="status-badge" class="font-label-caps border border-[#1A1A1A] px-3 py-1 flex items-center gap-2">
+                 <div id="rec-dot" class="w-2 h-2 bg-[#1A1A1A] hidden"></div>
+                 <span id="status-text">READY</span>
+             </div>
+        </div>
+    </header>
+
+    <main class="grid grid-cols-12 flex-1 overflow-hidden">
+        <!-- Left Side: Controls & Status -->
+        <section class="col-span-4 border-r-2 border-[#1A1A1A] bg-[#FFFFFF] p-12 flex flex-col justify-between overflow-y-auto">
+            <div>
+                <h2 class="font-headline-lg text-4xl mb-4">MONITOR</h2>
+                <p class="font-body-lg text-on-surface-variant mb-12">AI listens and classifies classroom events every 60 seconds.</p>
+                
+                <div class="border-2 border-[#1A1A1A] p-8 mb-8 text-center bg-[#F5F5F0]">
+                    <div id="timer-value" class="font-headline-lg text-8xl font-bold tracking-tighter text-[#1A1A1A] opacity-30">60</div>
+                    <div class="font-label-caps tracking-widest mt-4">SECONDS UNTIL NEXT ANALYSIS</div>
+                </div>
+
+                <div id="processing-bar" class="hidden border border-[#1A1A1A] p-4 bg-surface-container text-center font-label-caps items-center justify-center gap-3">
+                    <span class="material-symbols-outlined animate-spin" data-icon="sync">sync</span>
+                    ANALYZING AUDIO...
+                </div>
+            </div>
+
+            <div class="pt-12">
+                <button id="btn-toggle" class="w-full bg-[#1A1A1A] text-[#FFFFFF] py-6 font-label-caps tracking-widest hover:bg-[#FFFFFF] hover:text-[#1A1A1A] border-2 border-[#1A1A1A] transition-colors">
+                    START LISTENING
+                </button>
+            </div>
+        </section>
+
+        <!-- Right Side: Feed -->
+        <section class="col-span-8 bg-[#F5F5F0] p-12 flex flex-col h-full overflow-hidden">
+             <div class="flex justify-between items-end mb-8 border-b-2 border-[#1A1A1A] pb-4 shrink-0">
+                <h2 class="font-headline-lg text-3xl">ACTIVITY LOG</h2>
+            </div>
+            <div id="card-area" class="space-y-6 flex-1 overflow-y-auto no-scrollbar pb-12">
+                <div class="text-center opacity-30 font-label-caps mt-24">LISTENING... RESULTS WILL APPEAR HERE</div>
+            </div>
+        </section>
+    </main>
+
+<script>
+(function () {
+    let recording = false, mediaRecorder = null, audioChunks = [];
+    let countdownTimer = null, secondsLeft = 60;
+
+    const LS_KEY = 'sathi_classroom_history';
+    const loadHistory = () => { try { const r = localStorage.getItem(LS_KEY); if (r) { const d = JSON.parse(r); if (Array.isArray(d)) return d; } } catch {} return []; };
+    const saveHistory = () => { try { localStorage.setItem(LS_KEY, JSON.stringify(classificationHistory.slice(0, 50))); } catch {} };
+    let classificationHistory = loadHistory();
+
+    const btnToggle = document.getElementById('btn-toggle');
+    const timerValue = document.getElementById('timer-value');
+    const statusBadge = document.getElementById('status-badge');
+    const statusText = document.getElementById('status-text');
+    const recDot = document.getElementById('rec-dot');
+    const cardArea = document.getElementById('card-area');
+    const procBar = document.getElementById('processing-bar');
+
+    const timeStr = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const escHtml = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+
+    const priorityMeta = {
+        URGENT:    { cls: 'bg-error text-on-error', label: 'URGENT', icon: 'emergency' },
+        IMPORTANT: { cls: 'bg-[#1A1A1A] text-[#FFFFFF]', label: 'IMPORTANT', icon: 'priority_high' },
+        NOTES:     { cls: 'border border-[#1A1A1A] text-[#1A1A1A]', label: 'NOTES', icon: 'notes' },
+        ANNOUNCE:  { cls: 'border border-[#1A1A1A] text-[#1A1A1A]', label: 'ANNOUNCE', icon: 'campaign' },
+        SKIP:      { cls: 'text-[#1A1A1A] opacity-50 border border-transparent', label: 'SKIP', icon: 'skip_next' },
+    };
+
+    const renderCards = () => {
+        if (classificationHistory.length === 0) {
+            cardArea.innerHTML = '<div class="text-center opacity-30 font-label-caps mt-24">LISTENING... RESULTS WILL APPEAR HERE</div>';
+            return;
+        }
+        cardArea.innerHTML = classificationHistory.map((c, idx) => {
+            const meta = priorityMeta[c.priority] || priorityMeta.NOTES;
+            const hasTranscript = c.transcript && c.transcript.trim().length > 0;
+            return `<div class="p-6 bg-[#FFFFFF] border-2 ${c.priority === 'URGENT' ? 'border-error' : 'border-[#1A1A1A]'} hover:bg-[#f9f9f5] transition-all hover:-translate-y-1 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] group ${hasTranscript ? 'cursor-pointer' : ''}" ${hasTranscript ? `onclick="toggleTranscript(${idx})"` : ''}>
+                <div class="flex items-center justify-between mb-4">
+                    <span class="font-label-caps px-2 py-1 text-xs ${meta.cls} flex items-center gap-1 border-2 border-transparent shadow-sm">
+                        <span class="material-symbols-outlined text-[14px]" data-icon="${meta.icon}">${meta.icon}</span>
+                        ${meta.label}
+                    </span>
+                    <div class="flex items-center gap-3">
+                        <span class="font-label-caps text-[10px] opacity-50">${c.time}</span>
+                        ${hasTranscript ? '<span class="material-symbols-outlined text-[16px] opacity-30 group-hover:opacity-80" id="chevron-' + idx + '">expand_more</span>' : ''}
+                    </div>
+                </div>
+                <div class="font-body-lg font-medium leading-relaxed">${escHtml(c.summary)}</div>
+                ${hasTranscript ? `<div id="transcript-${idx}" style="max-height:0;overflow:hidden;transition:max-height .15s ease">
+                    <p class="pt-4 mt-4 border-t border-dashed border-[#ccc] font-body-md text-sm opacity-70 leading-relaxed">${escHtml(c.transcript)}</p>
+                </div>` : ''}
+            </div>`;
+        }).join('');
+    };
+
+    window.toggleTranscript = (idx) => {
+        const p = document.getElementById('transcript-' + idx);
+        const c = document.getElementById('chevron-' + idx);
+        if (!p) return;
+        const open = p.style.maxHeight !== '0px';
+        p.style.maxHeight = open ? '0px' : p.scrollHeight + 'px';
+        if (c) c.textContent = open ? 'expand_more' : 'expand_less';
+    };
+
+    const setRecordingUI = (active) => {
+        if (active) {
+            statusBadge.className = 'font-label-caps border-2 border-[#1A1A1A] bg-error text-on-error px-3 py-1 flex items-center gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]';
+            statusText.textContent = 'RECORDING';
+            recDot.className = 'w-2 h-2 bg-on-error animate-pulse border border-[#1A1A1A]';
+            recDot.classList.remove('hidden');
+            timerValue.className = 'font-headline-lg text-8xl font-bold tracking-tighter text-[#1A1A1A]';
+            btnToggle.textContent = 'STOP LISTENING (Voice: "Stop")'; 
+            btnToggle.className = 'w-full bg-[#FFFFFF] text-[#1A1A1A] py-6 font-label-caps tracking-widest border-2 border-[#1A1A1A] hover:bg-error hover:text-on-error hover:border-error transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 active:translate-y-1 active:shadow-none';
+        } else {
+            statusBadge.className = 'font-label-caps border-2 border-[#1A1A1A] bg-surface-variant text-[#1A1A1A] px-3 py-1 flex items-center gap-2 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]';
+            statusText.textContent = 'READY';
+            recDot.className = 'w-2 h-2 bg-[#1A1A1A] hidden';
+            timerValue.className = 'font-headline-lg text-8xl font-bold tracking-tighter text-[#1A1A1A] opacity-30';
+            btnToggle.textContent = 'START LISTENING (Voice: "Start")'; 
+            btnToggle.className = 'w-full bg-[#1A1A1A] text-[#FFFFFF] py-6 font-label-caps tracking-widest hover:bg-[#FFFFFF] hover:text-[#1A1A1A] border-2 border-[#1A1A1A] transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 active:translate-y-1 active:shadow-none';
+            timerValue.textContent = '60';
+        }
+    };
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+            mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                audioChunks = [];
+                sendAudioForClassification(audioBlob);
+                if (recording) { mediaRecorder.start(); secondsLeft = 60; }
+            };
+            mediaRecorder.start(); recording = true; secondsLeft = 60;
+            setRecordingUI(true);
+            if (classificationHistory.length === 0) cardArea.innerHTML = '<div class="text-center opacity-30 font-label-caps mt-24">LISTENING... RESULTS WILL APPEAR HERE</div>';
+            countdownTimer = setInterval(() => {
+                secondsLeft--; timerValue.textContent = Math.max(secondsLeft, 0);
+                if (secondsLeft <= 0 && mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+            }, 1000);
+        } catch (e) { alert('Microphone access denied.'); }
+    };
+
+    const stopRecording = () => {
+        recording = false; clearInterval(countdownTimer);
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+        if (mediaRecorder && mediaRecorder.stream) mediaRecorder.stream.getTracks().forEach(t => t.stop());
+        setRecordingUI(false);
+    };
+
+    const sendAudioForClassification = async (audioBlob) => {
+        if (audioBlob.size < 1000) return;
+        procBar.classList.remove('hidden');
+        procBar.classList.add('flex');
+        try {
+            const fd = new FormData(); fd.append('audio', audioBlob, 'classroom.webm');
+            const res = await fetch('/api/classroom', { method: 'POST', body: fd });
+            if (!res.ok) { procBar.classList.remove('flex'); procBar.classList.add('hidden'); return; }
+            const data = await res.json();
+            if (data.priority && data.priority !== 'SKIP') {
+                classificationHistory.unshift({ priority: data.priority, summary: data.summary || 'No summary', transcript: data.transcript || '', time: timeStr() });
+                if (classificationHistory.length > 20) classificationHistory.pop();
+                saveHistory(); renderCards();
+            }
+            if (data.priority === 'URGENT' && navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
+        } catch (e) { console.error('Classification error:', e); }
+        procBar.classList.remove('flex'); procBar.classList.add('hidden');
+    };
+
+    btnToggle.addEventListener('click', () => { recording ? stopRecording() : startRecording(); });
+    
+    btnToggle.className = 'w-full bg-[#1A1A1A] text-[#FFFFFF] py-6 font-label-caps tracking-widest hover:bg-[#FFFFFF] hover:text-[#1A1A1A] border-2 border-[#1A1A1A] transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-1 active:translate-y-1 active:shadow-none';
+
+    if (classificationHistory.length > 0) renderCards();
+
+    const setupVoiceControl = () => {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) return;
+        const voiceRec = new SR();
+        voiceRec.continuous = true;
+        voiceRec.interimResults = false;
+        voiceRec.lang = 'en-US';
+
+        const speak = (text) => {
+            if (!('speechSynthesis' in window)) return;
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.rate = 0.9;
+            window.speechSynthesis.speak(msg);
+        };
+
+        voiceRec.onresult = (e) => {
+            const transcript = e.results[e.results.length - 1][0].transcript.toLowerCase().trim();
+            
+            if (['start listening', 'start', 'begin'].some(k => transcript.includes(k))) {
+                if (!recording) {
+                    speak('Starting classroom monitor.');
+                    startRecording();
+                }
+            }
+            else if (['stop listening', 'stop', 'pause', 'quiet'].some(k => transcript.includes(k))) {
+                if (recording) {
+                    speak('Stopping classroom monitor.');
+                    stopRecording();
+                }
+            }
+            else if (['go back', 'back', 'return'].some(k => transcript.includes(k))) {
+                speak('Going back to main screen.');
+                window.location.href = '/';
+            }
+            else if (['read log', 'read history', 'what happened'].some(k => transcript.includes(k))) {
+                if (classificationHistory.length === 0) {
+                    speak('The log is empty.');
+                } else {
+                    speak(`Reading the last ${Math.min(3, classificationHistory.length)} updates.`);
+                    classificationHistory.slice(0, 3).forEach(c => {
+                        speak(`${c.priority} priority: ${c.summary}`);
+                    });
+                }
+            }
+            else if (['help', 'what can you do'].some(k => transcript.includes(k))) {
+                speak('In classroom mode, you can say: start listening, stop listening, read log, or go back.');
+            }
+        };
+
+        voiceRec.onend = () => {
+            try { voiceRec.start(); } catch (e) {} 
+        };
+
+        try { voiceRec.start(); } catch (e) {}
+    };
+
+    setTimeout(setupVoiceControl, 1000);
+})();
+</script>
+</body>
+</html>

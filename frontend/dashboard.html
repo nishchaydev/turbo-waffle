@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Guardian Dashboard — SATHI</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,200..800;1,6..72,200..800&family=Work+Sans:wght@100..900&display=swap" rel="stylesheet"/>
+    
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "error": "#ba1a1a",
+                        "on-error": "#ffffff",
+                        "primary": "#000000",
+                        "on-primary": "#ffffff",
+                        "surface-variant": "#e5e2e1",
+                        "on-surface-variant": "#444748",
+                        "surface-container-high": "#ebe7e6",
+                        "surface-container": "#f1edec",
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0rem",
+                        "lg": "0rem",
+                        "xl": "0rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "body-lg": ["Work Sans"],
+                        "headline-md": ["Newsreader"],
+                        "body-md": ["Work Sans"],
+                        "headline-lg": ["Newsreader"],
+                        "label-caps": ["Work Sans"],
+                        "display-xl": ["Newsreader"]
+                    },
+                }
+            }
+        }
+    </script>
+    <style>
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        body { background-color: #F5F5F0; color: #1A1A1A; }
+        .writing-v { writing-mode: vertical-lr; transform: rotate(180deg); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body class="font-body-md selection:bg-primary selection:text-on-primary">
+
+<!-- FULL-WIDTH MAIN CONTENT (no sidebar) -->
+<main class="w-full min-h-screen">
+    <!-- TopAppBar Navigation -->
+    <header class="flex justify-between items-center w-full px-12 py-8 bg-[#F5F5F0] dark:bg-[#1A1A1A]">
+        <div class="flex items-center gap-4">
+            <button onclick="history.back()" class="flex items-center gap-2 font-['Work_Sans'] uppercase tracking-widest text-[12px] font-bold hover:bg-[#1A1A1A] hover:text-[#FFFFFF] px-4 py-2 transition-colors">
+                <span class="material-symbols-outlined text-sm" data-icon="arrow_back">arrow_back</span>
+                BACK TO SATHI
+            </button>
+        </div>
+        <div class="text-4xl font-black font-['Newsreader'] tracking-tighter text-[#1A1A1A] dark:text-[#FFFFFF] flex flex-col items-center">
+            SATHI
+            <span id="watching-label" class="font-['Work_Sans'] text-[10px] uppercase tracking-widest font-normal opacity-50 mt-1">Watching over: —</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <button id="btn-voice" class="flex items-center gap-1 px-3 py-2 border border-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-[#FFFFFF] transition-colors cursor-pointer" title="Voice Command">
+                <span class="material-symbols-outlined text-sm">mic</span>
+                <span class="font-['Work_Sans'] text-[10px] uppercase tracking-widest font-bold hidden sm:inline">Voice</span>
+            </button>
+            <button id="btn-call" class="flex items-center gap-1 px-3 py-2 border border-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-[#FFFFFF] transition-colors cursor-pointer" title="Call Guardian">
+                <span class="material-symbols-outlined text-sm">call</span>
+                <span class="font-['Work_Sans'] text-[10px] uppercase tracking-widest font-bold hidden sm:inline">Call</span>
+            </button>
+            <button id="btn-safe" class="flex items-center gap-1 px-3 py-2 border border-[#1A1A1A] hover:bg-[#1A1A1A] hover:text-[#FFFFFF] transition-colors cursor-pointer" title="Mark Safe">
+                <span class="material-symbols-outlined text-sm">check_circle</span>
+                <span class="font-['Work_Sans'] text-[10px] uppercase tracking-widest font-bold hidden sm:inline">Safe</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Canvas -->
+    <div class="px-12 pb-24 grid grid-cols-12 gap-0 border-t-2 border-[#1A1A1A]">
+        
+        <!-- Left Column: Feed & History -->
+        <section class="col-span-8 bg-[#FFFFFF] p-12 border-r-2 border-[#1A1A1A] min-h-screen">
+            <div class="flex justify-between items-end mb-8">
+                <h1 class="font-headline-lg text-display-xl leading-none">FEED</h1>
+                <div class="flex gap-4" id="filter-bar">
+                    <button onclick="filterFeed('today')" class="filter-btn font-label-caps bg-[#1A1A1A] text-[#FFFFFF] px-6 py-2 transition-none">TODAY</button>
+                    <button onclick="filterFeed('2days')" class="filter-btn font-label-caps border border-[#1A1A1A] text-[#1A1A1A] px-6 py-2 hover:bg-[#1A1A1A] hover:text-[#FFFFFF] transition-none">2 DAYS</button>
+                    <button onclick="filterFeed('7days')" class="filter-btn font-label-caps border border-[#1A1A1A] text-[#1A1A1A] px-6 py-2 hover:bg-[#1A1A1A] hover:text-[#FFFFFF] transition-none">7 DAYS</button>
+                </div>
+            </div>
+
+            <!-- Type Filter Chips -->
+            <div class="flex flex-wrap gap-2 mb-10" id="type-filter-bar">
+                <button onclick="filterByType('all')" class="type-btn font-label-caps text-[10px] tracking-widest bg-[#1A1A1A] text-[#FFFFFF] px-4 py-2 border-2 border-[#1A1A1A] transition-all hover:-translate-y-0.5">ALL</button>
+                <button onclick="filterByType('vision')" class="type-btn font-label-caps text-[10px] tracking-widest bg-[#FFFFFF] text-[#1A1A1A] px-4 py-2 border-2 border-[#1A1A1A] transition-all hover:-translate-y-0.5 hover:bg-[#1A1A1A] hover:text-[#FFFFFF]">👁 VISION</button>
+                <button onclick="filterByType('sos')" class="type-btn font-label-caps text-[10px] tracking-widest bg-[#FFFFFF] text-[#1A1A1A] px-4 py-2 border-2 border-[#1A1A1A] transition-all hover:-translate-y-0.5 hover:bg-[#1A1A1A] hover:text-[#FFFFFF]">🚨 SOS</button>
+                <button onclick="filterByType('classroom')" class="type-btn font-label-caps text-[10px] tracking-widest bg-[#FFFFFF] text-[#1A1A1A] px-4 py-2 border-2 border-[#1A1A1A] transition-all hover:-translate-y-0.5 hover:bg-[#1A1A1A] hover:text-[#FFFFFF]">🏫 CLASSROOM</button>
+                <button onclick="filterByType('geofence')" class="type-btn font-label-caps text-[10px] tracking-widest bg-[#FFFFFF] text-[#1A1A1A] px-4 py-2 border-2 border-[#1A1A1A] transition-all hover:-translate-y-0.5 hover:bg-[#1A1A1A] hover:text-[#FFFFFF]">📍 GEOFENCE</button>
+                <button onclick="filterByType('URGENT')" class="type-btn font-label-caps text-[10px] tracking-widest bg-[#FFFFFF] text-[#1A1A1A] px-4 py-2 border-2 border-error text-error transition-all hover:-translate-y-0.5 hover:bg-error hover:text-[#FFFFFF]">⚠ URGENT</button>
+                <button onclick="filterByType('IMPORTANT')" class="type-btn font-label-caps text-[10px] tracking-widest bg-[#FFFFFF] text-[#1A1A1A] px-4 py-2 border-2 border-[#1A1A1A] transition-all hover:-translate-y-0.5 hover:bg-[#1A1A1A] hover:text-[#FFFFFF]">📌 IMPORTANT</button>
+                <button onclick="filterByType('NOTES')" class="type-btn font-label-caps text-[10px] tracking-widest bg-[#FFFFFF] text-[#1A1A1A] px-4 py-2 border-2 border-[#1A1A1A] transition-all hover:-translate-y-0.5 hover:bg-[#1A1A1A] hover:text-[#FFFFFF]">📝 NOTES</button>
+            </div>
+            
+            <div id="feed" class="space-y-12">
+                <div class="feed-empty opacity-50 font-body-lg">Waiting for activity…</div>
+            </div>
+        </section>
+
+        <!-- Right Column: HUD & Alerts -->
+        <section class="col-span-4 bg-[#F5F5F0] p-12 space-y-24 overflow-y-auto max-h-screen">
+            
+            <!-- SOS ALERT SECTION -->
+            <div id="sos-section" style="display: none;">
+                <div class="flex items-center justify-between mb-8">
+                    <h2 class="font-headline-md text-headline-md">STATUS</h2>
+                    <span class="bg-error text-on-error px-3 py-1 font-label-caps animate-pulse">URGENT</span>
+                </div>
+                <div class="bg-[#FFFFFF] p-8 space-y-6">
+                    <div id="sos-title" class="font-headline-md text-error font-bold mb-4">🚨 SOS ALERT</div>
+                    <div class="flex justify-between border-b border-[#F5F5F0] pb-4">
+                        <span class="font-label-caps opacity-50">LATITUDE</span>
+                        <span class="font-body-md font-bold tracking-tighter" id="sos-lat">--</span>
+                    </div>
+                    <div class="flex justify-between border-b border-[#F5F5F0] pb-4">
+                        <span class="font-label-caps opacity-50">LONGITUDE</span>
+                        <span class="font-body-md font-bold tracking-tighter" id="sos-lon">--</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="font-label-caps opacity-50">TIME</span>
+                        <span class="font-body-md font-bold tracking-tighter" id="sos-time">--</span>
+                    </div>
+                    <a id="sos-map-link" href="#" target="_blank" rel="noopener" class="block w-full h-48 bg-surface-container mt-4 overflow-hidden grayscale border border-[#1A1A1A] hover:grayscale-0 transition-all cursor-pointer relative group">
+                        <div class="absolute inset-0 bg-[#1A1A1A] text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10 font-label-caps">OPEN IN MAPS</div>
+                        <img class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuACuevGV1I5Yu3zwP1kw2VKyyWi2p0_w2F5kQGIGd4e7FQi3HKqi0xN9a3ccjrVH018mZbLFgOl-s5zcpt471E9WzKhtLJfqxANIIKvJ-zhgVDpE0HI2i1e31vTjcwXptVPq4L1FVNDLfXq_6tA5ZRp-QMyGytv4A8QOcBgFRh3vMIq4GxFcuPUU3FwjPvwboCy_XFDM5kioGT2KMSCzTYPe4eRvroD1KKDLcAguWVeB94UieebaRqJdUe9gG9HqOEQFR5cv8xo8aLp"/>
+                    </a>
+                    <!-- Medical Info during SOS (for first responders) -->
+                    <div id="sos-medical-info" style="display: none;" class="mt-4 p-4 bg-[#FFF3F3] border-2 border-error space-y-2">
+                        <span class="font-label-caps text-error block mb-2">⚕️ MEDICAL INFORMATION</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HUD SECTION -->
+            <div>
+                <h2 class="font-headline-md text-headline-md mb-8">HUD</h2>
+                <div class="space-y-4">
+                    <div class="bg-[#FFFFFF] p-8">
+                        <span class="font-label-caps block mb-6">GENERAL STATUS</span>
+                        <div class="space-y-8">
+                            <div>
+                                <div class="flex justify-between text-[10px] mb-2 font-bold uppercase">
+                                    <span>LAST LOCATION</span>
+                                    <span id="status-location" class="underline">--</span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[10px] mb-2 font-bold uppercase">
+                                    <span>LAST ACTIVE</span>
+                                    <span id="status-active">--</span>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between text-[10px] mb-2 font-bold uppercase">
+                                    <span>SAFETY STATUS</span>
+                                    <span id="status-safety" class="bg-[#1A1A1A] text-white px-2 py-1">SAFE</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DAILY SAFETY REPORT -->
+            <div class="pt-12">
+                <div class="flex items-center justify-between mb-8">
+                    <h2 class="font-headline-md text-headline-md">DAILY REPORT</h2>
+                    <span class="font-label-caps opacity-50">LAST 24H</span>
+                </div>
+                <div id="daily-report" class="grid grid-cols-2 gap-4">
+                    <div class="bg-[#FFFFFF] p-6 text-center">
+                        <div class="text-3xl font-bold" id="report-safety-score">--</div>
+                        <div class="text-[10px] font-bold uppercase tracking-widest opacity-50 mt-2">SAFETY SCORE</div>
+                    </div>
+                    <div class="bg-[#FFFFFF] p-6 text-center">
+                        <div class="text-3xl font-bold" id="report-total">--</div>
+                        <div class="text-[10px] font-bold uppercase tracking-widest opacity-50 mt-2">TOTAL EVENTS</div>
+                    </div>
+                    <div class="bg-[#FFFFFF] p-6 text-center">
+                        <div class="text-3xl font-bold text-error" id="report-sos">0</div>
+                        <div class="text-[10px] font-bold uppercase tracking-widest opacity-50 mt-2">SOS ALERTS</div>
+                    </div>
+                    <div class="bg-[#FFFFFF] p-6 text-center">
+                        <div class="text-3xl font-bold" id="report-vision">0</div>
+                        <div class="text-[10px] font-bold uppercase tracking-widest opacity-50 mt-2">VISION QUERIES</div>
+                    </div>
+                    <div class="bg-[#FFFFFF] p-6 text-center">
+                        <div class="text-3xl font-bold" id="report-classroom">0</div>
+                        <div class="text-[10px] font-bold uppercase tracking-widest opacity-50 mt-2">CLASSROOM</div>
+                    </div>
+                    <div class="bg-[#FFFFFF] p-6 text-center">
+                        <div class="text-3xl font-bold text-warning" id="report-geofence">0</div>
+                        <div class="text-[10px] font-bold uppercase tracking-widest opacity-50 mt-2">GEOFENCE</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GEOFENCE SAFE ZONE CONFIG -->
+            <div class="pt-12">
+                <div class="flex items-center justify-between mb-8">
+                    <h2 class="font-headline-md text-headline-md">SAFE ZONE</h2>
+                    <span id="geofence-status" class="font-label-caps opacity-50">NOT SET</span>
+                </div>
+                <div class="bg-[#FFFFFF] p-8 space-y-4">
+                    <div>
+                        <label class="text-[10px] font-bold uppercase tracking-widest block mb-1">ZONE LABEL</label>
+                        <input id="geo-label" type="text" placeholder="e.g. Home, School, Office" class="w-full border-2 border-[#1A1A1A] p-3 text-sm outline-none focus:-translate-y-0.5 focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] font-bold uppercase tracking-widest block mb-1">LATITUDE</label>
+                            <input id="geo-lat" type="number" step="0.0001" placeholder="28.6139" class="w-full border-2 border-[#1A1A1A] p-3 text-sm outline-none focus:-translate-y-0.5 focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold uppercase tracking-widest block mb-1">LONGITUDE</label>
+                            <input id="geo-lon" type="number" step="0.0001" placeholder="77.2090" class="w-full border-2 border-[#1A1A1A] p-3 text-sm outline-none focus:-translate-y-0.5 focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold uppercase tracking-widest block mb-1">RADIUS (METERS)</label>
+                        <input id="geo-radius" type="number" value="500" min="50" max="10000" class="w-full border-2 border-[#1A1A1A] p-3 text-sm outline-none focus:-translate-y-0.5 focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="btn-geo-current" class="flex-1 border-2 border-[#1A1A1A] py-3 font-label-caps hover:bg-[#1A1A1A] hover:text-white transition-colors">📍 USE CURRENT LOCATION</button>
+                        <button id="btn-geo-save" class="flex-1 bg-[#1A1A1A] text-white py-3 font-label-caps hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">SAVE ZONE</button>
+                    </div>
+                    <button id="btn-geo-disable" class="w-full border-2 border-error text-error py-2 font-label-caps hover:bg-error hover:text-white transition-colors text-[10px]">DISABLE GEOFENCE</button>
+                </div>
+            </div>
+
+            <!-- CARE & MEDICINE SECTION -->
+            <div class="pt-12">
+                <div class="flex items-center justify-between mb-8">
+                    <h2 class="font-headline-md text-headline-md">CARE</h2>
+                    <span class="font-label-caps opacity-50">PERSONALIZATION</span>
+                </div>
+
+                <!-- MEDICINES -->
+                <div class="bg-[#FFFFFF] p-8 mb-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <span class="font-label-caps flex items-center gap-2">
+                            <span class="material-symbols-outlined text-sm">medication</span>
+                            MEDICINES
+                        </span>
+                        <button id="btn-add-med" class="text-[10px] font-bold uppercase tracking-widest border border-[#1A1A1A] px-3 py-1 hover:bg-[#1A1A1A] hover:text-[#FFFFFF] transition-colors">+ ADD</button>
+                    </div>
+                    <div id="medicine-list" class="space-y-4"></div>
+
+                    <!-- Add Medicine Form (hidden by default) -->
+                    <div id="med-form" class="hidden mt-6 pt-6 border-t border-dashed border-[#ccc] space-y-4">
+                        <input id="med-name" type="text" placeholder="Medicine name" class="w-full border-2 border-[#1A1A1A] p-3 text-sm font-body-md outline-none focus:-translate-y-0.5 focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                        <input id="med-dosage" type="text" placeholder="Dosage (e.g. 1 tablet, 5ml)" class="w-full border-2 border-[#1A1A1A] p-3 text-sm font-body-md outline-none focus:-translate-y-0.5 focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                        <input id="med-instructions" type="text" placeholder="Instructions (e.g. after food)" class="w-full border-2 border-[#1A1A1A] p-3 text-sm font-body-md outline-none focus:-translate-y-0.5 focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                        <div>
+                            <label class="text-[10px] font-bold uppercase tracking-widest block mb-2">TIMES (click to add)</label>
+                            <div class="flex gap-2 flex-wrap" id="med-times-container">
+                                <input id="med-time-input" type="time" class="border-2 border-[#1A1A1A] p-2 text-sm">
+                                <button id="btn-add-time" class="border-2 border-[#1A1A1A] px-3 text-sm font-bold hover:bg-[#1A1A1A] hover:text-white transition-colors">+</button>
+                            </div>
+                            <div id="med-times-list" class="flex gap-2 flex-wrap mt-2"></div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="btn-save-med" class="flex-1 bg-[#1A1A1A] text-white py-3 font-label-caps hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">SAVE MEDICINE</button>
+                            <button id="btn-cancel-med" class="px-4 py-3 border-2 border-[#1A1A1A] font-label-caps hover:bg-[#1A1A1A] hover:text-white transition-colors">CANCEL</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- REMINDERS -->
+                <div class="bg-[#FFFFFF] p-8 mb-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <span class="font-label-caps flex items-center gap-2">
+                            <span class="material-symbols-outlined text-sm">notifications</span>
+                            REMINDERS
+                        </span>
+                        <button id="btn-add-rem" class="text-[10px] font-bold uppercase tracking-widest border border-[#1A1A1A] px-3 py-1 hover:bg-[#1A1A1A] hover:text-[#FFFFFF] transition-colors">+ ADD</button>
+                    </div>
+                    <div id="reminder-list" class="space-y-4"></div>
+
+                    <!-- Add Reminder Form (hidden by default) -->
+                    <div id="rem-form" class="hidden mt-6 pt-6 border-t border-dashed border-[#ccc] space-y-4">
+                        <input id="rem-text" type="text" placeholder="Reminder text (e.g. Doctor appointment)" class="w-full border-2 border-[#1A1A1A] p-3 text-sm font-body-md outline-none focus:-translate-y-0.5 focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                        <input id="rem-time" type="time" class="w-full border-2 border-[#1A1A1A] p-3 text-sm">
+                        <div class="flex gap-2">
+                            <button id="btn-save-rem" class="flex-1 bg-[#1A1A1A] text-white py-3 font-label-caps hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">SAVE REMINDER</button>
+                            <button id="btn-cancel-rem" class="px-4 py-3 border-2 border-[#1A1A1A] font-label-caps hover:bg-[#1A1A1A] hover:text-white transition-colors">CANCEL</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MEDICAL INFO -->
+                <div class="bg-[#FFFFFF] p-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <span class="font-label-caps flex items-center gap-2">
+                            <span class="material-symbols-outlined text-sm">health_and_safety</span>
+                            MEDICAL INFO
+                        </span>
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-[10px] font-bold uppercase tracking-widest block mb-1">BLOOD TYPE</label>
+                            <select id="med-blood" class="w-full border-2 border-[#1A1A1A] p-3 text-sm bg-white">
+                                <option value="">Select</option>
+                                <option>A+</option><option>A-</option><option>B+</option><option>B-</option>
+                                <option>AB+</option><option>AB-</option><option>O+</option><option>O-</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold uppercase tracking-widest block mb-1">ALLERGIES</label>
+                            <input id="med-allergies" type="text" placeholder="e.g. Penicillin, Nuts, Dust" class="w-full border-2 border-[#1A1A1A] p-3 text-sm outline-none focus:-translate-y-0.5 focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold uppercase tracking-widest block mb-1">CONDITIONS</label>
+                            <input id="med-conditions" type="text" placeholder="e.g. Diabetes, Asthma" class="w-full border-2 border-[#1A1A1A] p-3 text-sm outline-none focus:-translate-y-0.5 focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold uppercase tracking-widest block mb-1">EMERGENCY NOTES</label>
+                            <textarea id="med-notes" rows="3" placeholder="Any critical info for first responders..." class="w-full border-2 border-[#1A1A1A] p-3 text-sm outline-none resize-none focus:-translate-y-0.5 focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"></textarea>
+                        </div>
+                        <button id="btn-save-medical" class="w-full bg-[#1A1A1A] text-white py-3 font-label-caps hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">SAVE MEDICAL INFO</button>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </div>
+</main>
+
+<script>
+(function () {
+    const PROFILE_KEY = 'sathi_user_profile';
+    let profile = null;
+    try { profile = JSON.parse(localStorage.getItem(PROFILE_KEY)); } catch {}
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlName = urlParams.get('name');
+    const userName = urlName || profile?.guardian?.name || 'Your loved one';
+    const userPhone = profile?.guardian?.phone || null;
+    document.getElementById('watching-label').textContent = `Watching over: ${userName}`;
+
+    let sosActive = false, lastActiveTime = null;
+
+    const FEED_CACHE_KEY = 'sathi_dashboard_events';
+    const loadCached = () => { try { const r = localStorage.getItem(FEED_CACHE_KEY); if (r) { const d = JSON.parse(r); if (Array.isArray(d)) return d; } } catch {} return []; };
+    const saveCached = (ev) => { try { localStorage.setItem(FEED_CACHE_KEY, JSON.stringify(ev.slice(-50))); } catch {} };
+
+    const timeAgo = (iso) => {
+        if (!iso) return '—';
+        const diff = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+        if (diff < 10) return 'Just now';
+        if (diff < 60) return `${diff}s ago`;
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        return `${Math.floor(diff / 3600)}h ago`;
+    };
+    const escHtml = (s) => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+
+    const eventMeta = {
+        sos:       { icon_text: 'emergency' },
+        vision:    { icon_text: 'visibility' },
+        location:  { icon_text: 'location_on' },
+        reminder:  { icon_text: 'notifications' },
+        classroom: { icon_text: 'school' },
+        care_update: { icon_text: 'health_and_safety' },
+        geofence:  { icon_text: 'fence' },
+    };
+
+    const renderFeed = (events) => {
+        const feed = document.getElementById('feed');
+        if (!events || events.length === 0) { feed.innerHTML = '<div class="feed-empty opacity-50 font-body-lg">Waiting for activity…</div>'; return; }
+        const sorted = [...events].reverse();
+        feed.innerHTML = sorted.map(ev => {
+            const meta = eventMeta[ev.type] || eventMeta.vision;
+            let desc = ev.description || ev.summary || '';
+            if (ev.type === 'sos') desc = ev.lat ? `SOS triggered! Location: ${ev.lat}, ${ev.lon}` : (ev.description || 'SOS Alert!');
+            let priBadge = '';
+            if (ev.type === 'classroom' && ev.priority) {
+                priBadge = `<span class="bg-[#1A1A1A] text-white px-2 py-1 text-xs font-bold uppercase mr-3">${ev.priority}</span>`;
+            }
+            let photoHtml = '';
+            if (ev.photo) {
+                photoHtml = `<img src="data:image/jpeg;base64,\n${ev.photo}" class="w-full max-w-md object-cover mt-6 filter grayscale contrast-125 border border-[#1A1A1A]" alt="SOS photo">`;
+            }
+            const title = ev.type.toUpperCase();
+            
+            return `<div class="group flex items-start gap-8 p-6 mb-4 bg-[#FFFFFF] border-2 border-transparent hover:border-[#1A1A1A] transition-all hover:-translate-y-1 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+                <span class="font-label-caps opacity-40 pt-2 w-20 shrink-0">${timeAgo(ev.time)}</span>
+                <div class="flex-1">
+                    <h3 class="font-headline-md text-headline-md mb-3 flex items-center">${priBadge}${title}</h3>
+                    <p class="font-body-lg text-body-lg text-on-surface-variant max-w-xl leading-relaxed">${escHtml(desc)}</p>
+                    ${photoHtml}
+                </div>
+                <span class="material-symbols-outlined text-4xl opacity-20 group-hover:opacity-100 transition-opacity">${meta.icon_text}</span>
+            </div>`;
+        }).join('');
+    };
+
+    const updateStatus = (events) => {
+        if (!events || events.length === 0) return;
+        const last = events[events.length - 1];
+        lastActiveTime = last.time;
+        document.getElementById('status-active').textContent = timeAgo(last.time);
+
+        const locEvent = [...events].reverse().find(e => e.lat && e.lon);
+        if (locEvent) {
+            const link = `https://www.google.com/maps?q=${locEvent.lat},${locEvent.lon}`;
+            document.getElementById('status-location').innerHTML =
+                `<a href="${link}" target="_blank" rel="noopener" class="hover:text-blue-600 transition-colors">${parseFloat(locEvent.lat).toFixed(4)}, ${parseFloat(locEvent.lon).toFixed(4)}</a>`;
+        }
+
+        const latestSOS = [...events].reverse().find(e => e.type === 'sos');
+        if (latestSOS) {
+            const sosSecs = (Date.now() - new Date(latestSOS.time).getTime()) / 1000;
+            sosSecs < 300 ? activateSOS(latestSOS) : deactivateSOS();
+        } else { deactivateSOS(); }
+
+        updateSafetyBadge(events);
+    };
+
+    const updateSafetyBadge = (events) => {
+        const c = document.getElementById('status-safety');
+        const last = events[events.length - 1];
+        const secs = (Date.now() - new Date(last.time).getTime()) / 1000;
+        const recentSOS = [...events].reverse().find(e => e.type === 'sos');
+        if (recentSOS && (Date.now() - new Date(recentSOS.time).getTime()) / 1000 < 300) {
+            c.className = "bg-error text-on-error px-3 py-1 animate-pulse";
+            c.textContent = 'SOS ACTIVE'; 
+            return;
+        }
+        if (secs > 600) {
+            c.className = "bg-surface-variant text-on-surface-variant px-3 py-1";
+            c.textContent = 'CHECK IN';
+        } else {
+            c.className = "bg-[#1A1A1A] text-white px-3 py-1";
+            c.textContent = 'SAFE';
+        }
+    };
+
+    const activateSOS = (ev) => {
+        sosActive = true;
+        document.getElementById('sos-section').style.display = 'block';
+        document.getElementById('sos-title').textContent = `🚨 SOS ALERT — ${userName} needs help!`;
+        document.getElementById('sos-time').textContent = timeAgo(ev.time);
+        document.getElementById('sos-lat').textContent = ev.lat ? parseFloat(ev.lat).toFixed(4) : '--';
+        document.getElementById('sos-lon').textContent = ev.lon ? parseFloat(ev.lon).toFixed(4) : '--';
+        document.getElementById('sos-map-link').href = ev.lat ? `https://www.google.com/maps?q=${ev.lat},${ev.lon}` : '#';
+
+        // Show medical info during SOS for first responders
+        const mi = ev.medical_info || {};
+        const medDiv = document.getElementById('sos-medical-info');
+        if (medDiv && (mi.blood_type || mi.allergies || mi.conditions || mi.emergency_notes)) {
+            let html = '';
+            if (mi.blood_type) html += `<div class="flex justify-between border-b border-[#F5F5F0] pb-2"><span class="font-label-caps opacity-50">BLOOD</span><span class="font-body-md font-bold">${escHtml(mi.blood_type)}</span></div>`;
+            if (mi.allergies) html += `<div class="flex justify-between border-b border-[#F5F5F0] pb-2"><span class="font-label-caps opacity-50">ALLERGIES</span><span class="font-body-md font-bold text-error">${escHtml(mi.allergies)}</span></div>`;
+            if (mi.conditions) html += `<div class="flex justify-between border-b border-[#F5F5F0] pb-2"><span class="font-label-caps opacity-50">CONDITIONS</span><span class="font-body-md font-bold">${escHtml(mi.conditions)}</span></div>`;
+            if (mi.emergency_notes) html += `<div class="pt-2"><span class="font-label-caps opacity-50 block mb-1">EMERGENCY NOTES</span><span class="font-body-md font-bold">${escHtml(mi.emergency_notes)}</span></div>`;
+            medDiv.innerHTML = html;
+            medDiv.style.display = 'block';
+        }
+    };
+    const deactivateSOS = () => { sosActive = false; document.getElementById('sos-section').style.display = 'none'; };
+
+    const fetchFeed = async () => {
+        try {
+            const res = await fetch('/api/dashboard-feed');
+            if (!res.ok) return;
+            const data = await res.json();
+            const events = data.events || [];
+            saveCached(events); 
+            renderFeed(getFilteredEvents()); 
+            updateStatus(events);
+            document.getElementById('status-active').textContent = timeAgo(lastActiveTime);
+        } catch {
+            const cached = loadCached();
+            if (cached.length > 0) { 
+                renderFeed(getFilteredEvents()); 
+                updateStatus(cached); 
+            }
+        }
+    };
+
+    let currentFilter = 'today';
+    let activeTypeFilter = 'all';
+
+    // Get filtered events based on both date range AND type
+    const getFilteredEvents = () => {
+        const hours = currentFilter === 'today' ? 24 : currentFilter === '2days' ? 48 : 168;
+        const cutoff = Date.now() - (hours * 60 * 60 * 1000);
+        const allEvents = loadCached();
+        let filtered = allEvents.filter(e => new Date(e.time).getTime() > cutoff);
+
+        // Apply type filter
+        if (activeTypeFilter !== 'all') {
+            if (['URGENT', 'IMPORTANT', 'NOTES'].includes(activeTypeFilter)) {
+                // Priority-based filter (classroom events only)
+                filtered = filtered.filter(e => e.priority && e.priority === activeTypeFilter);
+            } else {
+                // Type-based filter
+                filtered = filtered.filter(e => e.type === activeTypeFilter);
+            }
+        }
+        return filtered;
+    };
+
+    window.filterFeed = (range) => {
+        currentFilter = range;
+        renderFeed(getFilteredEvents());
+        
+        // Update active classes on date buttons
+        const btns = document.querySelectorAll('.filter-btn');
+        btns.forEach(btn => {
+            btn.className = "filter-btn font-label-caps border border-[#1A1A1A] text-[#1A1A1A] px-6 py-2 hover:bg-[#1A1A1A] hover:text-[#FFFFFF] transition-none";
+        });
+        const activeBtn = Array.from(btns).find(b => b.textContent.toLowerCase().replace(' ', '') === range.replace('days', ' days') || (range==='today' && b.textContent==='TODAY') || (range==='2days' && b.textContent==='2 DAYS') || (range==='7days' && b.textContent==='7 DAYS'));
+        if (activeBtn) {
+            activeBtn.className = "filter-btn font-label-caps bg-[#1A1A1A] text-[#FFFFFF] px-6 py-2 transition-none";
+        }
+    };
+
+    window.filterByType = (type) => {
+        activeTypeFilter = type;
+        renderFeed(getFilteredEvents());
+
+        // Update type filter button states
+        const typeBtns = document.querySelectorAll('.type-btn');
+        typeBtns.forEach(btn => {
+            const isUrgent = btn.textContent.includes('URGENT');
+            const borderClr = isUrgent ? 'border-error text-error' : 'border-[#1A1A1A]';
+            btn.className = `type-btn font-label-caps text-[10px] tracking-widest bg-[#FFFFFF] text-[#1A1A1A] px-4 py-2 border-2 ${borderClr} transition-all hover:-translate-y-0.5 hover:bg-[#1A1A1A] hover:text-[#FFFFFF]`;
+        });
+        // Highlight active
+        const activeBtn = Array.from(typeBtns).find(b => {
+            if (type === 'all') return b.textContent.trim() === 'ALL';
+            return b.getAttribute('onclick')?.includes(`'${type}'`);
+        });
+        if (activeBtn) {
+            const isUrgent = type === 'URGENT';
+            activeBtn.className = `type-btn font-label-caps text-[10px] tracking-widest px-4 py-2 border-2 border-[#1A1A1A] transition-all -translate-y-0.5 ${isUrgent ? 'bg-error text-[#FFFFFF] border-error' : 'bg-[#1A1A1A] text-[#FFFFFF]'}`;
+        }
+    };
+
+    const cachedEvents = loadCached();
+    if (cachedEvents.length > 0) { renderFeed(cachedEvents); updateStatus(cachedEvents); }
+    fetchFeed();
+    setInterval(fetchFeed, 5000);
+    setInterval(() => { document.getElementById('status-active').textContent = timeAgo(lastActiveTime); }, 1000);
+
+    document.getElementById('btn-call').addEventListener('click', () => {
+        userPhone ? window.open(`tel:+91${userPhone}`, '_self') : alert('No phone number saved. Complete onboarding first.');
+    });
+
+    const speak = (text) => {
+        if (!('speechSynthesis' in window)) return;
+        const msg = new SpeechSynthesisUtterance(text);
+        msg.rate = 0.9;
+        window.speechSynthesis.speak(msg);
+    };
+
+    document.getElementById('btn-voice').addEventListener('click', () => {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) { alert('Speech recognition not supported in this browser.'); return; }
+        const voiceRec = new SR();
+        voiceRec.lang = 'en-US';
+        voiceRec.interimResults = false;
+        voiceRec.onstart = () => { speak('Dashboard listening. Say classroom, or emergency.'); };
+        voiceRec.onresult = (e) => {
+            const transcript = e.results[0][0].transcript.toLowerCase().trim();
+            if (transcript.includes('classroom')) {
+                speak('Opening classroom mode.');
+                window.location.href = '/classroom.html';
+            } else if (transcript.includes('emergency') || transcript.includes('sos')) {
+                speak('Triggering SOS.');
+                // simulate SOS
+                fetch('/api/sos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'sos', description: 'Voice triggered SOS from dashboard', lat: 0, lon: 0 }) });
+            } else {
+                speak('Command not recognized.');
+            }
+        };
+        voiceRec.start();
+    });
+
+    document.getElementById('btn-safe').addEventListener('click', () => {
+        deactivateSOS();
+        const c = document.getElementById('status-safety');
+        c.className = "bg-[#1A1A1A] text-white px-3 py-1";
+        c.textContent = 'SAFE';
+    });
+
+    // ===== CARE PROFILE MANAGEMENT =====
+    let careData = { medicines: [], reminders: [], medical_info: { allergies: '', blood_type: '', conditions: '', emergency_notes: '' } };
+    let tempMedTimes = [];
+
+    const loadCareProfile = async () => {
+        try {
+            const res = await fetch('/api/care-profile');
+            if (res.ok) {
+                careData = await res.json();
+                renderMedicines();
+                renderReminders();
+                fillMedicalInfo();
+            }
+        } catch (e) { console.error('Failed to load care profile:', e); }
+    };
+
+    const saveCareProfile = async () => {
+        try {
+            await fetch('/api/care-profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(careData)
+            });
+        } catch (e) { console.error('Failed to save care profile:', e); }
+    };
+
+    const renderMedicines = () => {
+        const list = document.getElementById('medicine-list');
+        if (!careData.medicines || careData.medicines.length === 0) {
+            list.innerHTML = '<div class="opacity-40 text-sm">No medicines added yet</div>';
+            return;
+        }
+        list.innerHTML = careData.medicines.map((m, i) => `
+            <div class="flex items-start justify-between p-4 border-2 border-[#1A1A1A] hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all group">
+                <div>
+                    <div class="font-bold text-sm">${escHtml(m.name)}</div>
+                    <div class="text-[10px] opacity-60 uppercase tracking-widest mt-1">${escHtml(m.dosage)} ${m.instructions ? '· ' + escHtml(m.instructions) : ''}</div>
+                    <div class="flex gap-2 mt-2 flex-wrap">
+                        ${(m.times || []).map(t => `<span class="bg-[#1A1A1A] text-white px-2 py-0.5 text-[10px] font-bold">${t}</span>`).join('')}
+                    </div>
+                </div>
+                <button onclick="deleteMedicine(${i})" class="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100 hover:text-error transition-all cursor-pointer">delete</button>
+            </div>
+        `).join('');
+    };
+
+    const renderReminders = () => {
+        const list = document.getElementById('reminder-list');
+        if (!careData.reminders || careData.reminders.length === 0) {
+            list.innerHTML = '<div class="opacity-40 text-sm">No reminders added yet</div>';
+            return;
+        }
+        list.innerHTML = careData.reminders.map((r, i) => `
+            <div class="flex items-center justify-between p-4 border-2 border-[#1A1A1A] hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all group">
+                <div>
+                    <div class="font-bold text-sm">${escHtml(r.text)}</div>
+                    <div class="text-[10px] opacity-60 uppercase tracking-widest mt-1">⏰ ${r.time}</div>
+                </div>
+                <button onclick="deleteReminder(${i})" class="material-symbols-outlined text-sm opacity-0 group-hover:opacity-100 hover:text-error transition-all cursor-pointer">delete</button>
+            </div>
+        `).join('');
+    };
+
+    const fillMedicalInfo = () => {
+        const mi = careData.medical_info || {};
+        document.getElementById('med-blood').value = mi.blood_type || '';
+        document.getElementById('med-allergies').value = mi.allergies || '';
+        document.getElementById('med-conditions').value = mi.conditions || '';
+        document.getElementById('med-notes').value = mi.emergency_notes || '';
+    };
+
+    // === Medicine Form ===
+    document.getElementById('btn-add-med').addEventListener('click', () => {
+        document.getElementById('med-form').classList.remove('hidden');
+        tempMedTimes = [];
+        document.getElementById('med-times-list').innerHTML = '';
+        document.getElementById('med-name').value = '';
+        document.getElementById('med-dosage').value = '';
+        document.getElementById('med-instructions').value = '';
+    });
+
+    document.getElementById('btn-cancel-med').addEventListener('click', () => {
+        document.getElementById('med-form').classList.add('hidden');
+    });
+
+    document.getElementById('btn-add-time').addEventListener('click', () => {
+        const t = document.getElementById('med-time-input').value;
+        if (t && !tempMedTimes.includes(t)) {
+            tempMedTimes.push(t);
+            renderTempTimes();
+        }
+    });
+
+    const renderTempTimes = () => {
+        document.getElementById('med-times-list').innerHTML = tempMedTimes.map((t, i) =>
+            `<span class="bg-[#1A1A1A] text-white px-2 py-1 text-[10px] font-bold flex items-center gap-1">${t} <button onclick="removeTempTime(${i})" class="hover:text-error">×</button></span>`
+        ).join('');
+    };
+
+    window.removeTempTime = (i) => { tempMedTimes.splice(i, 1); renderTempTimes(); };
+
+    document.getElementById('btn-save-med').addEventListener('click', async () => {
+        const name = document.getElementById('med-name').value.trim();
+        const dosage = document.getElementById('med-dosage').value.trim();
+        const instructions = document.getElementById('med-instructions').value.trim();
+        if (!name) { alert('Medicine name is required.'); return; }
+        if (tempMedTimes.length === 0) { alert('Add at least one time.'); return; }
+        careData.medicines.push({ name, dosage, instructions, times: [...tempMedTimes] });
+        await saveCareProfile();
+        renderMedicines();
+        document.getElementById('med-form').classList.add('hidden');
+        speak(`Medicine ${name} added with ${tempMedTimes.length} reminder times.`);
+    });
+
+    window.deleteMedicine = async (i) => {
+        const name = careData.medicines[i]?.name || 'Medicine';
+        careData.medicines.splice(i, 1);
+        await saveCareProfile();
+        renderMedicines();
+        speak(`${name} removed from medicines.`);
+    };
+
+    // === Reminder Form ===
+    document.getElementById('btn-add-rem').addEventListener('click', () => {
+        document.getElementById('rem-form').classList.remove('hidden');
+        document.getElementById('rem-text').value = '';
+        document.getElementById('rem-time').value = '';
+    });
+
+    document.getElementById('btn-cancel-rem').addEventListener('click', () => {
+        document.getElementById('rem-form').classList.add('hidden');
+    });
+
+    document.getElementById('btn-save-rem').addEventListener('click', async () => {
+        const text = document.getElementById('rem-text').value.trim();
+        const time = document.getElementById('rem-time').value;
+        if (!text || !time) { alert('Both reminder text and time are required.'); return; }
+        careData.reminders.push({ text, time });
+        await saveCareProfile();
+        renderReminders();
+        document.getElementById('rem-form').classList.add('hidden');
+        speak(`Reminder set: ${text} at ${time}.`);
+    });
+
+    window.deleteReminder = async (i) => {
+        careData.reminders.splice(i, 1);
+        await saveCareProfile();
+        renderReminders();
+    };
+
+    // === Medical Info Save ===
+    document.getElementById('btn-save-medical').addEventListener('click', async () => {
+        careData.medical_info = {
+            blood_type: document.getElementById('med-blood').value,
+            allergies: document.getElementById('med-allergies').value.trim(),
+            conditions: document.getElementById('med-conditions').value.trim(),
+            emergency_notes: document.getElementById('med-notes').value.trim()
+        };
+        await saveCareProfile();
+        speak('Medical information saved.');
+    });
+
+    // Load care profile on page load
+    loadCareProfile();
+
+    // ===== DAILY SAFETY REPORT =====
+    const loadDailyReport = async () => {
+        try {
+            const res = await fetch('/api/daily-report');
+            if (!res.ok) return;
+            const r = await res.json();
+            document.getElementById('report-total').textContent = r.total_events;
+            document.getElementById('report-sos').textContent = r.sos_alerts;
+            document.getElementById('report-vision').textContent = r.vision_queries;
+            document.getElementById('report-classroom').textContent = r.classroom_events;
+            document.getElementById('report-geofence').textContent = r.geofence_alerts;
+
+            const score = r.safety_score;
+            const scoreEl = document.getElementById('report-safety-score');
+            scoreEl.textContent = score;
+            if (score >= 80) { scoreEl.style.color = '#34C759'; }
+            else if (score >= 50) { scoreEl.style.color = '#FFCC00'; }
+            else { scoreEl.style.color = '#FF3B30'; }
+        } catch (e) { console.error('Daily report load failed:', e); }
+    };
+    loadDailyReport();
+    setInterval(loadDailyReport, 60000);
+
+    // ===== GEOFENCE SAFE ZONE CONFIG =====
+    const loadGeofence = async () => {
+        try {
+            const res = await fetch('/api/geofence');
+            if (!res.ok) return;
+            const geo = await res.json();
+            if (geo.lat) document.getElementById('geo-lat').value = geo.lat;
+            if (geo.lon) document.getElementById('geo-lon').value = geo.lon;
+            if (geo.radius) document.getElementById('geo-radius').value = geo.radius;
+            if (geo.label) document.getElementById('geo-label').value = geo.label;
+            const statusEl = document.getElementById('geofence-status');
+            if (geo.enabled && geo.lat) {
+                statusEl.textContent = `ACTIVE — ${geo.label || 'Zone'} (${geo.radius}m)`;
+                statusEl.className = 'font-label-caps bg-[#34C759] text-white px-2 py-1';
+            } else {
+                statusEl.textContent = 'NOT SET';
+                statusEl.className = 'font-label-caps opacity-50';
+            }
+        } catch (e) { /* offline */ }
+    };
+    loadGeofence();
+
+    document.getElementById('btn-geo-current').addEventListener('click', () => {
+        if (!navigator.geolocation) { alert('Geolocation not available.'); return; }
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                document.getElementById('geo-lat').value = pos.coords.latitude.toFixed(6);
+                document.getElementById('geo-lon').value = pos.coords.longitude.toFixed(6);
+                speak('Current location filled in. Set a label and save.');
+            },
+            () => { alert('Could not get location. Enter manually.'); },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    });
+
+    document.getElementById('btn-geo-save').addEventListener('click', async () => {
+        const lat = parseFloat(document.getElementById('geo-lat').value);
+        const lon = parseFloat(document.getElementById('geo-lon').value);
+        const radius = parseInt(document.getElementById('geo-radius').value) || 500;
+        const label = document.getElementById('geo-label').value.trim() || 'Safe Zone';
+        if (!lat || !lon) { alert('Please enter latitude and longitude.'); return; }
+
+        try {
+            const res = await fetch('/api/geofence', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lat, lon, radius, label, enabled: true })
+            });
+            if (res.ok) {
+                speak(`Safe zone "${label}" set with ${radius} meter radius.`);
+                loadGeofence();
+            }
+        } catch (e) { alert('Failed to save geofence.'); }
+    });
+
+    document.getElementById('btn-geo-disable').addEventListener('click', async () => {
+        try {
+            await fetch('/api/geofence', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lat: null, lon: null, radius: 500, label: '', enabled: false })
+            });
+            speak('Geofence disabled.');
+            loadGeofence();
+        } catch (e) { alert('Failed to disable geofence.'); }
+    });
+})();
+</script>
+</body>
+</html>
