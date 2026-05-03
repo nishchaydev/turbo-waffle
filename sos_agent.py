@@ -12,7 +12,7 @@ class SOSAgent:
         lat = params.get("latitude", "22.7196")
         lon = params.get("longitude", "75.8577")
         
-        email = os.environ.get("FAMILY_EMAIL", "ac.nishchay@gmail.com")
+        email = params.get("email") or os.environ.get("FAMILY_EMAIL", "ac.nishchay@gmail.com")
         api_key = os.environ.get("RESEND_API_KEY", "re_XmVNfaEX_BswxYkp5DSHCRYwAUXdYeX9G")
         
         maps_url = f"https://www.google.com/maps?q={lat},{lon}"

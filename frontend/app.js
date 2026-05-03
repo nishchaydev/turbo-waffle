@@ -240,17 +240,8 @@ const checkNetwork = () => {
 
 // ===== WHATSAPP SOS =====
 const sendWhatsAppSOS = () => {
-    const loc = window.lastKnownLocation || {};
-    const lat = loc.latitude || '', lon = loc.longitude || '';
-    const maps = `https://www.google.com/maps?q=${lat},${lon}`;
-    const phone = guardianPhone || '';
-    const msg = encodeURIComponent(`SATHI SOS ALERT: I need immediate help. My location: ${maps}`);
-    if (phone) {
-        window.open(`https://wa.me/${phone}?text=${msg}`);
-        speak('WhatsApp message sent to guardian.', true);
-    } else {
-        speak('No guardian phone number saved. Complete onboarding first.', true);
-    }
+    speak('WhatsApp SOS is not available. Sending emergency email alert instead.', true);
+    triggerSOS();
 };
 
 // ===== TIME AND DATE =====
@@ -707,7 +698,7 @@ const triggerSOS = () => {
         fetch('/api/sos', {
           method: 'POST',
           headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({latitude: lat, longitude: lon, phone: guardianPhone || undefined, photo: photoB64, medical_info: cachedMedicalInfo || undefined})
+          body: JSON.stringify({latitude: lat, longitude: lon, email: guardianEmail || undefined, photo: photoB64, medical_info: cachedMedicalInfo || undefined})
         });
       },
       (err) => {
@@ -716,7 +707,7 @@ const triggerSOS = () => {
                     {latitude: '22.7196', longitude: '75.8577'};
         fetch('/api/sos', { method:'POST',
           headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({...loc, phone: guardianPhone || undefined})
+          body: JSON.stringify({...loc, email: guardianEmail || undefined})
         });
       },
       {enableHighAccuracy: true, timeout: 5000}
@@ -948,7 +939,7 @@ const routeVoiceCommand = async (transcript) => {
     if (['help', 'sos', 'emergency', 'bachao', 'बचाओ', 'madad', 'मदद'].some(k => t.includes(k))) {
         speak('Sending emergency alert now!', true);
         const loc = window.lastKnownLocation || {};
-        fetch('/api/sos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ latitude: loc.latitude || '28.6139', longitude: loc.longitude || '77.2090', phone: guardianPhone || undefined }) });
+        fetch('/api/sos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ latitude: loc.latitude || '28.6139', longitude: loc.longitude || '77.2090', email: guardianEmail || undefined }) });
         return;
     }
 
@@ -1630,7 +1621,7 @@ const loadProfile = () => { try { return JSON.parse(localStorage.getItem(PROFILE
 const saveProfile = (p) => { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); };
 
 // Store guardian phone globally so SOS routing can use it
-let guardianPhone = null;
+let guardianEmail = null;
 
 // ============================================================
 //  ONBOARDING FLOW  (5 steps, runs ONCE)
@@ -1657,7 +1648,7 @@ const LANGUAGES = [
 const showOnboarding = () => {
     appState = 'onboarding'; // Enable keyword-based voice routing
     const savedRole = localStorage.getItem('sathi_role');
-    const profile = { userType: savedRole === 'user' ? 'self' : (savedRole === 'guardian' ? 'guardian' : null), disabilities: [], guardian: { name: '', phone: '', homeTime: '' }, language: 'en-US' };
+    const profile = { userType: savedRole === 'user' ? 'self' : (savedRole === 'guardian' ? 'guardian' : null), disabilities: [], guardian: { name: '', email: '' }, language: 'en-US' };
     let step = savedRole ? 1 : 0;
 
     // --- Build HTML ---
@@ -1719,9 +1710,9 @@ const showOnboarding = () => {
                         <span class="text-error text-sm min-h-[1.2em]" id="err-name"></span>
                     </div>
                     <div class="flex flex-col gap-1">
-                        <label for="g-phone" class="text-sm font-bold uppercase tracking-wider">Guardian Phone (+91)</label>
-                        <input id="g-phone" type="tel" placeholder="10 digit number" maxlength="10" inputmode="numeric" class="bg-surface border-2 border-[#1A1A1A] p-4 text-lg outline-none focus:ring-2 focus:ring-primary focus:-translate-y-1 focus:shadow-brutal transition-all">
-                        <span class="text-error text-sm min-h-[1.2em]" id="err-phone"></span>
+                        <label for="g-email" class="text-sm font-bold uppercase tracking-wider">Guardian Email</label>
+                        <input id="g-email" type="email" placeholder="e.g. name@example.com" class="bg-surface border-2 border-[#1A1A1A] p-4 text-lg outline-none focus:ring-2 focus:ring-primary focus:-translate-y-1 focus:shadow-brutal transition-all">
+                        <span class="text-error text-sm min-h-[1.2em]" id="err-email"></span>
                     </div>
 
                 </div>
@@ -1787,7 +1778,7 @@ const showOnboarding = () => {
         } else if (step === 1) {
             speak('What are your support needs? Say Visual, Hearing, Dyslexia, Motor, or Elderly. Then say Next.', true);
         } else if (step === 2) {
-            speak('Please enter emergency contact details. You can say "Name is [Your Name]" or "Number is [Your 10 digit number]". Or just say "Skip" to do this later.', true);
+            speak('Please enter emergency contact details. You can say "Name is [Your Name]" or "Email is [Your Email]". Or just say "Skip" to do this later.', true);
         } else if (step === 3) {
             speak('Choose your language. Say English, Hindi, Marathi, Tamil, Bengali, Gujarati, or Urdu.', true);
         }
@@ -1832,30 +1823,31 @@ const showOnboarding = () => {
     // --- STEP 3 logic ---
     const validateStep3 = () => {
         const nameEl = document.getElementById('g-name');
-        const phoneEl = document.getElementById('g-phone');
+        const emailEl = document.getElementById('g-email');
         const errName = document.getElementById('err-name');
-        const errPhone = document.getElementById('err-phone');
+        const errEmail = document.getElementById('err-email');
         let valid = true;
 
         const name = nameEl.value.trim();
-        const phone = phoneEl.value.trim();
+        const email = emailEl.value.trim();
 
         if (name) { errName.textContent = ''; nameEl.classList.remove('invalid'); }
         else { errName.textContent = ''; nameEl.classList.remove('invalid'); }
 
-        if (phone && !/^\d{10}$/.test(phone)) { errPhone.textContent = 'Enter a valid 10-digit phone number'; phoneEl.classList.add('invalid'); valid = false; }
-        else { errPhone.textContent = ''; phoneEl.classList.remove('invalid'); }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (email && !emailRegex.test(email)) { errEmail.textContent = 'Enter a valid email address'; emailEl.classList.add('invalid'); valid = false; }
+        else { errEmail.textContent = ''; emailEl.classList.remove('invalid'); }
 
         if (valid) {
             profile.guardian.name = name;
-            profile.guardian.phone = phone;
+            profile.guardian.email = email;
         }
         return valid;
     };
 
     // Clear errors on input
     document.getElementById('g-name').addEventListener('input', () => { document.getElementById('err-name').textContent = ''; document.getElementById('g-name').classList.remove('invalid'); });
-    document.getElementById('g-phone').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); document.getElementById('err-phone').textContent = ''; e.target.classList.remove('invalid'); });
+    document.getElementById('g-email').addEventListener('input', (e) => { document.getElementById('err-email').textContent = ''; e.target.classList.remove('invalid'); });
 
     document.getElementById('back-2').addEventListener('click', () => goToStep(1));
     document.getElementById('next-2').addEventListener('click', () => { if (validateStep3()) goToStep(3); });
@@ -1875,7 +1867,7 @@ const showOnboarding = () => {
         // Save profile, show ready screen
         saveProfile(profile);
         lang = profile.language;
-        guardianPhone = profile.guardian.phone;
+        guardianEmail = profile.guardian.email;
 
         // Set ready subtext
         const sub = document.getElementById('ready-sub');
@@ -1896,7 +1888,7 @@ const showOnboarding = () => {
 // ===== LAUNCH CAMERA (profile-aware) =====
 const launchCameraWithProfile = (profile) => {
     lang = profile.language || 'en-US';
-    guardianPhone = profile.guardian?.phone || null;
+    guardianEmail = profile.guardian?.email || null;
 
     goToCameraHUD().then(() => {
         if (profile.disabilities.includes('hearing')) {

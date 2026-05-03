@@ -293,6 +293,7 @@ def trigger_sos():
     lat = data.get('latitude', '28.6139')
     lon = data.get('longitude', '77.2090')
     photo = data.get('photo', None)
+    email = data.get('email', None)
     medical = data.get('medical_info', care_profile.get('medical_info', {}))
     event_log.append({
         "type": "sos",
@@ -309,6 +310,8 @@ def trigger_sos():
     params = {"trigger": "manual", "latitude": lat, "longitude": lon}
     if photo:
         params["photo"] = photo
+    if email:
+        params["email"] = email
     result = sos.run(params)
     
     if isinstance(result, dict):
