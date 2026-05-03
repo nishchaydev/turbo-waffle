@@ -4,3 +4,8 @@ __pycache__/
 *.pyc
 tunnel.log
 .agent/
+.agents/
+source_code.zip
+event_log.json
+care_profile.json
+cloudflared

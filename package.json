@@ -3,8 +3,7 @@
   "version": "1.0.0",
   "description": "Accessibility Companion Agent",
   "scripts": {
-    "dev": "python server.py",
-    "tunnel": "npx -y cloudflared tunnel --url http://localhost:5000"
+    "dev": "python server.py"
   },
   "author": "",
   "license": "ISC",
