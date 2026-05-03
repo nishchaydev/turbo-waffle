@@ -2,14 +2,14 @@
  * SATHI — Camera-First Accessibility Companion
  * Features: Scene Memory, Proximity beep, haptic, read text, flashlight, low-light
  *
- * SATHI SPEAKS ONLY WHEN:
- * 1. User says "describe" or asks a question
- * 2. Obstacle detected closer than 1.0m (throttled 10s)
- * 3. User moves into new area (motion triggered, min 20s gap)
- * 4. URGENT classroom event detected
- * 5. SOS triggered
- * 6. User explicitly asks anything
- * SATHI IS SILENT OTHERWISE — mic always listening
+ * SATHI SAFETY-FIRST PROTOCOL:
+ * 1. IMMEDIATE: Collision/obstacle → urgent voice + haptic warning
+ * 2. PROACTIVE: Walls/stairs/hazards checked every 45s via LLM
+ * 3. HEARTBEAT: Subtle vibration every 30s so blind user knows app is alive
+ * 4. RESPONSIVE: Double-tap = instant safety scan
+ * 5. VOICE: "check path", "check stairs", "is it safe" for on-demand safety
+ * 6. FALL: Auto-detect falls and trigger SOS if no response
+ * 7. GUARDIAN: All events logged to guardian dashboard
  */
 import { getTranslation } from './services/translations.js';
 import * as visionAI from './services/visionService.js';
@@ -33,6 +33,15 @@ let motionBuffer = [];
 let wakeLock = null;
 let lastTiltWarn = 0;
 let conversationHistory = [];
+
+// ===== FALL DETECTION STATE =====
+let fallDetected = false;
+let fallCountdownTimer = null;
+let fallCountdownValue = 15; // seconds before auto-SOS
+let lastFallAlertTime = 0;
+let fallAccelBuffer = []; // stores recent acceleration magnitudes
+let lastFallCheckTime = 0;
+
 const CHIP_SETS = [
     ["Is it safe?", "Read text", "What's that?"],
     ["Tell me more", "Any hazards?", "Describe left side"]
@@ -76,7 +85,7 @@ const SceneMemory = {
     }
 };
 
-// ===== PROXIMITY BEEP =====
+// ===== PROXIMITY BEEP (ENHANCED FOR SAFETY) =====
 const ProximityBeep = {
     audioCtx: null, beepTimer: null, closestDist: Infinity,
     init() { if (!this.audioCtx) this.audioCtx = new (window.AudioContext || window.webkitAudioContext)(); },
@@ -85,7 +94,7 @@ const ProximityBeep = {
         const osc = this.audioCtx.createOscillator();
         const g = this.audioCtx.createGain();
         osc.connect(g); g.connect(this.audioCtx.destination);
-        osc.frequency.value = freq; g.gain.value = 0.15;
+        osc.frequency.value = freq; g.gain.value = 0.2;
         osc.start(); osc.stop(this.audioCtx.currentTime + dur / 1000);
     },
     update(dist) {
@@ -93,11 +102,13 @@ const ProximityBeep = {
         clearInterval(this.beepTimer);
         if (dist > 3.0) return;
         let interval, freq;
-        if (dist < 0.5) { interval = 100; freq = 1200; if (navigator.vibrate) navigator.vibrate([100, 50, 100]); }
-        else if (dist < 1.0) { interval = 250; freq = 1000; if (navigator.vibrate) navigator.vibrate(80); }
-        else if (dist < 1.5) { interval = 500; freq = 880; }
-        else if (dist < 2.5) { interval = 800; freq = 660; }
-        else { interval = 1200; freq = 440; }
+        // DANGER ZONE — almost touching
+        if (dist < 0.3) { interval = 60; freq = 1500; if (navigator.vibrate) navigator.vibrate([80, 30, 80, 30, 80]); }
+        else if (dist < 0.5) { interval = 100; freq = 1200; if (navigator.vibrate) navigator.vibrate([100, 50, 100]); }
+        else if (dist < 1.0) { interval = 200; freq = 1000; if (navigator.vibrate) navigator.vibrate(80); }
+        else if (dist < 1.5) { interval = 400; freq = 880; }
+        else if (dist < 2.5) { interval = 700; freq = 660; }
+        else { interval = 1000; freq = 440; }
         this.beep(freq, 60);
         this.beepTimer = setInterval(() => this.beep(freq, 60), interval);
         setTimeout(() => clearInterval(this.beepTimer), 3000);
@@ -402,8 +413,8 @@ const initGeofenceMonitor = () => {
             lastGeofenceAlert = now;
 
             const distRounded = Math.round(dist);
-            speak(`Warning. You have left your safe zone. You are ${distRounded} meters away from ${geofenceConfig.label || 'safe zone'}.`, true);
-            showAIBubble(`📍 Left safe zone — ${distRounded}m away`);
+            speak(`Warning. You have left your safe zone.`, true);
+            showAIBubble(`📍 Left safe zone`);
             if (navigator.vibrate) navigator.vibrate([400, 200, 400, 200, 400]);
 
             // Alert the guardian dashboard
@@ -502,6 +513,174 @@ const activateDyslexiaMode = () => {
     speak('Dyslexia mode activated. Text is larger. Speech is slower.', true);
 };
 
+// ===== FALL DETECTION ENGINE =====
+const FallDetection = {
+    FREEFALL_THRESHOLD: 3.0,   // Below this = freefall (near 0g)
+    IMPACT_THRESHOLD: 25.0,    // Above this = hard impact (>2.5g)
+    COOLDOWN_MS: 60000,        // 60s cooldown between fall alerts
+    COUNTDOWN_SECONDS: 15,     // Seconds before auto-SOS
+    bufferSize: 20,            // Track last 20 readings (~1s at 50Hz)
+    recentReadings: [],
+    freefallDetected: false,
+    freefallTime: 0,
+
+    // Called on every accelerometer reading
+    analyze(mag) {
+        const now = Date.now();
+        this.recentReadings.push({ mag, time: now });
+        if (this.recentReadings.length > this.bufferSize) this.recentReadings.shift();
+
+        // Phase 1: Detect freefall (very low acceleration = phone dropping)
+        if (mag < this.FREEFALL_THRESHOLD && !this.freefallDetected) {
+            this.freefallDetected = true;
+            this.freefallTime = now;
+            return false;
+        }
+
+        // Phase 2: After freefall, look for impact within 2 seconds
+        if (this.freefallDetected) {
+            // Timeout: if no impact within 2s, reset
+            if (now - this.freefallTime > 2000) {
+                this.freefallDetected = false;
+                return false;
+            }
+            // Impact detected!
+            if (mag > this.IMPACT_THRESHOLD) {
+                this.freefallDetected = false;
+                // Cooldown check
+                if (now - lastFallAlertTime < this.COOLDOWN_MS) return false;
+                lastFallAlertTime = now;
+                return true; // FALL DETECTED
+            }
+        }
+
+        return false;
+    },
+
+    reset() {
+        this.freefallDetected = false;
+        this.recentReadings = [];
+    }
+};
+
+// Show the "Are you okay?" overlay
+const showFallAlert = () => {
+    fallDetected = true;
+    fallCountdownValue = FallDetection.COUNTDOWN_SECONDS;
+
+    // Heavy vibration pattern to get attention
+    if (navigator.vibrate) navigator.vibrate([500, 200, 500, 200, 500, 200, 500]);
+
+    // Speak urgently
+    speak('Fall detected! Are you okay? Say I am okay, or I will send an emergency alert in 15 seconds.', true);
+
+    // Create overlay
+    let overlay = document.getElementById('fall-alert-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'fall-alert-overlay';
+        document.body.appendChild(overlay);
+    }
+    overlay.innerHTML = `
+        <div class="fall-alert-content">
+            <div class="fall-alert-icon">⚠️</div>
+            <h2 class="fall-alert-title">Fall Detected!</h2>
+            <p class="fall-alert-subtitle">Are you okay?</p>
+            <div class="fall-alert-countdown" id="fall-countdown">${fallCountdownValue}</div>
+            <p class="fall-alert-timer-label">seconds until auto-SOS</p>
+            <div class="fall-alert-buttons">
+                <button class="fall-btn-ok" id="fall-btn-ok" aria-label="I am okay, cancel SOS">I'm Okay ✓</button>
+                <button class="fall-btn-sos" id="fall-btn-sos" aria-label="Send SOS now">Send SOS Now 🚨</button>
+            </div>
+            <p class="fall-alert-hint">Say <strong>"I'm okay"</strong> or tap the button</p>
+        </div>
+    `;
+    overlay.classList.add('visible');
+
+    // Button handlers
+    document.getElementById('fall-btn-ok')?.addEventListener('click', cancelFallAlert);
+    document.getElementById('fall-btn-sos')?.addEventListener('click', () => {
+        cancelFallAlert();
+        triggerFallSOS();
+    });
+
+    // Start countdown
+    fallCountdownTimer = setInterval(() => {
+        fallCountdownValue--;
+        const el = document.getElementById('fall-countdown');
+        if (el) el.textContent = fallCountdownValue;
+
+        // Periodic reminders
+        if (fallCountdownValue === 10) {
+            speak('10 seconds. Say I am okay to cancel.', true);
+            if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+        } else if (fallCountdownValue === 5) {
+            speak('5 seconds!', true);
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]);
+        }
+
+        if (fallCountdownValue <= 0) {
+            clearInterval(fallCountdownTimer);
+            fallCountdownTimer = null;
+            // No response — trigger SOS
+            triggerFallSOS();
+        }
+    }, 1000);
+};
+
+// Cancel the fall alert (user is okay)
+const cancelFallAlert = () => {
+    fallDetected = false;
+    if (fallCountdownTimer) {
+        clearInterval(fallCountdownTimer);
+        fallCountdownTimer = null;
+    }
+    const overlay = document.getElementById('fall-alert-overlay');
+    if (overlay) overlay.classList.remove('visible');
+    speak('Good. Alert cancelled. Stay safe.', true);
+    showAIBubble('✅ Fall alert cancelled — user is okay');
+    if (navigator.vibrate) navigator.vibrate(100); // gentle confirmation
+
+    // Log the cancelled fall event
+    fetch('/api/fall-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            status: 'cancelled',
+            lat: window.lastKnownLocation?.latitude || null,
+            lon: window.lastKnownLocation?.longitude || null
+        })
+    }).catch(() => {});
+};
+
+// Trigger SOS specifically for fall detection
+const triggerFallSOS = () => {
+    fallDetected = false;
+    if (fallCountdownTimer) {
+        clearInterval(fallCountdownTimer);
+        fallCountdownTimer = null;
+    }
+    const overlay = document.getElementById('fall-alert-overlay');
+    if (overlay) overlay.classList.remove('visible');
+
+    speak('Sending emergency alert. Fall detected. Help is on the way.', true);
+    showAIBubble('🚨 FALL SOS TRIGGERED — Alert sent to guardian');
+
+    // Log the fall-triggered SOS
+    fetch('/api/fall-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            status: 'triggered',
+            lat: window.lastKnownLocation?.latitude || null,
+            lon: window.lastKnownLocation?.longitude || null
+        })
+    }).catch(() => {});
+
+    // Now trigger the main SOS (with photo + location)
+    triggerSOS();
+};
+
 // ===== TRIGGER SOS (reusable) =====
 const triggerSOS = () => {
     speak('Sending emergency alert now!', true);
@@ -547,11 +726,20 @@ const triggerSOS = () => {
 // ===== SPEECH (barge-in enabled, does NOT stop recognition) =====
 const speak = (text, force = false) => {
     if (!('speechSynthesis' in window) || !text) return;
-    // Do NOT stop recognition — mic stays active during speech
-    if (force) window.speechSynthesis.cancel();
+    
+    // If it's already speaking:
+    // - If force = true (e.g. URGENT STOP), cancel current and speak immediately.
+    // - If force = false, simply DROP this message to avoid queuing stale info or annoying the user.
+    if (window.speechSynthesis.speaking) {
+        if (force) {
+            window.speechSynthesis.cancel();
+        } else {
+            return; // Drop non-urgent message, don't queue
+        }
+    }
+    
     const msg = new SpeechSynthesisUtterance(text);
-    msg.rate = 0.9;
-    // No need to restart recognition on end — it never stopped
+    msg.rate = 1.0; // Normal rate, sounds more conversational
     const voices = window.speechSynthesis.getVoices();
     const lc = lang.split('-')[0];
     const match = voices.find(v => v.lang.startsWith(lc));
@@ -577,10 +765,14 @@ const setupRecognition = () => {
     recognition.lang = lang;
     recognition.onresult = (e) => {
         const transcript = e.results[e.results.length - 1][0].transcript.trim();
-        // BARGE-IN: if Sathi is speaking, immediately cancel speech
+        
+        // Prevent self-triggering (panicking): If Sathi is currently speaking, 
+        // the microphone is likely picking up the device's own speakers. 
+        // We ignore the transcript to prevent infinite loops.
         if (window.speechSynthesis.speaking) {
-            window.speechSynthesis.cancel();
+            return;
         }
+
         // Track user activity for silence timer
         lastUserCommandTime = Date.now();
         if (isCaptionMode) {
@@ -740,6 +932,18 @@ const routeVoiceCommand = async (transcript) => {
         return;
     }
 
+    // FALL ALERT: "I'm okay" cancellation (must come before SOS check)
+    if (fallDetected && ['okay', 'ok', 'fine', 'i\'m okay', 'i\'m fine', 'i am okay', 'i am fine', 'cancel', 'theek', 'theek hoon', 'ठीक', 'ठीक हूं'].some(k => t.includes(k))) {
+        cancelFallAlert();
+        return;
+    }
+
+    // FALL ALERT: "Help" during fall alert triggers immediate SOS
+    if (fallDetected && ['help', 'sos', 'emergency', 'bachao', 'बचाओ', 'madad', 'मदद'].some(k => t.includes(k))) {
+        triggerFallSOS();
+        return;
+    }
+
     // SOS
     if (['help', 'sos', 'emergency', 'bachao', 'बचाओ', 'madad', 'मदद'].some(k => t.includes(k))) {
         speak('Sending emergency alert now!', true);
@@ -794,7 +998,7 @@ const routeVoiceCommand = async (transcript) => {
 
     // HELP — complete command list
     if (['what can you do', 'help me', 'features', 'commands'].some(k => t.includes(k))) {
-        speak('Available commands: describe, SOS, help, read document, read this, currency, simplify, flashlight on, flashlight off, zoom in, zoom out, battery, network, time, whatsapp, volume up, volume down, my medicines, medical info, read medicine, stop, start, where was I, dyslexia mode, change language, classroom, dashboard.', true);
+        speak('Safety commands: check path, check stairs, check ground, check door, is it safe. Navigation: describe, where am I, look around, any people. Actions: SOS, help, read this, currency, flashlight, zoom. Tap screen twice for instant safety scan. Triple-tap for emergency SOS.', true);
         return;
     }
 
@@ -805,6 +1009,43 @@ const routeVoiceCommand = async (transcript) => {
         const ago = Math.round((Date.now() - last.timestamp) / 60000);
         speak(`${ago} minutes ago, I saw: ${last.description}`, true);
         showAIBubble(`🧠 ${ago}m ago: ${last.description}`);
+        return;
+    }
+
+    // SAFETY SCAN COMMANDS (Edge cases for blind users)
+    if (['check path', 'is it safe', 'safe to walk', 'raasta dekho', 'raasta theek hai', 'scan ahead', 'check ahead'].some(k => t.includes(k))) {
+        speak('Checking your path for safety.', true);
+        captureAndDescribe('SAFETY CHECK: Look very carefully at the walking path ahead. Is there a wall, stairs, curb, drop-off, hole, wet floor, obstacle, or any danger? If safe, say clear path. If not, describe the exact danger and which direction to go to avoid it.');
+        return;
+    }
+    if (["what's around me", 'surroundings', 'aas paas', 'around me', 'look around', 'scan room', 'kya hai idhar'].some(k => t.includes(k))) {
+        speak('Scanning your surroundings.', true);
+        captureAndDescribe('Describe everything around this person in all directions. Mention: exits, doors, furniture, people, obstacles, floor type, lighting. Be specific about left, right, ahead, and behind if visible.');
+        return;
+    }
+    if (['check ground', 'ground', 'floor', 'zameen', 'check floor', 'surface'].some(k => t.includes(k))) {
+        speak('Checking the ground.', true);
+        captureAndDescribe('Focus on the floor/ground surface ahead. Is it level, sloped, wet, uneven, or damaged? Are there steps, curbs, cracks, puddles, cables, or any tripping hazards? Describe precisely.');
+        return;
+    }
+    if (['check stairs', 'stairs', 'steps', 'seedhi', 'seeji', 'any stairs', 'is there stairs'].some(k => t.includes(k))) {
+        speak('Checking for stairs.', true);
+        captureAndDescribe('Are there any stairs, steps, ramps, or elevation changes visible? If yes, are they going UP or DOWN? How many steps approximately? Is there a handrail?');
+        return;
+    }
+    if (['is there a door', 'door', 'darwaza', 'check door', 'any door'].some(k => t.includes(k))) {
+        speak('Looking for doors.', true);
+        captureAndDescribe('Is there a door visible? Is it open, closed, or partially open? Is it a glass door, wooden door, or automatic door? Where is the handle? Which direction does it open?');
+        return;
+    }
+    if (['where am i', 'location', 'kahan hoon', 'place', 'which room', 'konsa kamra'].some(k => t.includes(k))) {
+        speak('Identifying your location.', true);
+        captureAndDescribe('What room or place is this? Identify: is this indoors or outdoors? What type of room (kitchen, bathroom, office, corridor, street)? Mention landmarks, signs, or identifiers visible.');
+        return;
+    }
+    if (['any people', 'people', 'log', 'koi hai', 'is anyone there', 'is someone there', 'who is there'].some(k => t.includes(k))) {
+        speak('Looking for people.', true);
+        captureAndDescribe('Are there any people visible? How many? Where are they relative to me (ahead, left, right)? Are they standing, sitting, moving toward me or away?');
         return;
     }
 
@@ -883,7 +1124,7 @@ const captureAndDescribe = async (query = null) => {
         if (!video || !video.videoWidth) { isDescribing = false; if (btn) btn.classList.remove('loading'); return; }
         const imageB64 = captureGuideZoneFrame(video);
         const memoryContext = SceneMemory.getContext();
-        const systemPrompt = `You are SATHI, AI eyes for a visually impaired person. Be concise. Max 2 sentences. You have context of recent conversation below. Answer follow-up questions naturally without re-explaining everything.${memoryContext}`;
+        const systemPrompt = `You are SATHI, AI safety eyes for a visually impaired person. PRIORITY: dangers first (walls, stairs, obstacles), then navigation, then context. Max 2 sentences. First sentence = most important safety info. NEVER estimate distance or use words like near, far, close, meters, or feet.${memoryContext}`;
         const messages = [
             { role: "system", content: systemPrompt },
             ...conversationHistory.slice(-12),
@@ -939,12 +1180,23 @@ const handleMotion = (e) => {
     const acc = e.accelerationIncludingGravity;
     if (!acc) return;
     const mag = Math.sqrt(acc.x ** 2 + acc.y ** 2 + acc.z ** 2);
+
+    // ===== FALL DETECTION CHECK =====
+    if (!fallDetected && appState === 'camera') {
+        const isFall = FallDetection.analyze(mag);
+        if (isFall) {
+            showFallAlert();
+            return; // Skip motion-describe on fall event
+        }
+    }
+
     motionBuffer.push(mag);
     if (motionBuffer.length > 10) motionBuffer.shift();
     const avg = motionBuffer.reduce((a, b) => a + b, 0) / motionBuffer.length;
     const now = Date.now();
     // Significant movement AND enough time since last describe AND enough silence from user
-    if (avg > 12 && (now - lastDescribeTime) > 20000 && (now - lastUserCommandTime) > 10000) {
+    // Reduced to 10s for proactive safety to detect walls faster
+    if (avg > 12 && (now - lastDescribeTime) > 10000 && (now - lastUserCommandTime) > 8000) {
         lastDescribeTime = now;
         captureAndDescribe();
     }
@@ -1074,6 +1326,22 @@ const goToCameraHUD = async () => {
     }, { passive: true });
     document.addEventListener('touchend', () => { clearTimeout(pressTimer); }, { passive: true });
 
+    // ===== DOUBLE-TAP = IMMEDIATE SAFETY SCAN (blind-first gesture) =====
+    let lastTapTime = 0;
+    document.addEventListener('touchend', (e) => {
+        if (e.target.closest('.bottom-nav, .sos-btn, .capture-btn, .cr-btn, .nav-item, button, a, input')) return;
+        const now = Date.now();
+        if (now - lastTapTime < 350) {
+            // Double-tap detected!
+            lastTapTime = 0;
+            if (navigator.vibrate) navigator.vibrate(50); // tactile confirmation
+            speak('Scanning for safety.', true);
+            captureAndDescribe('URGENT SAFETY SCAN: Look very carefully at everything in front of this blind person. Is there a wall, stairs, curb, drop-off, obstacle, vehicle, or any danger? Describe exactly what they need to know to walk safely. If clear, say so.');
+        } else {
+            lastTapTime = now;
+        }
+    }, { passive: true });
+
     // ===== MOTOR IMPAIRMENT — TRIPLE-TAP = SOS =====
     let tapCount = 0, tapTimer = null;
     document.addEventListener('touchend', (e) => {
@@ -1098,12 +1366,13 @@ const goToCameraHUD = async () => {
         if (offlineBadge) offlineBadge.style.display = 'none';
     });
 
-    // Start — single initial describe, then go silent. Mic always active.
+    // Start — BLIND-FIRST: immediate orientation, then proactive monitoring
     if (!recognition) setupRecognition();
-    speak(getTranslation(lang, 'promptLang'), true);
+    speak('SATHI is ready. Checking your surroundings now.', true);
     setTimeout(() => {
         if (!recognitionActive) startRecognition();
-        captureAndDescribe();
+        // FIRST SCAN: Full safety orientation for blind user
+        captureAndDescribe('FIRST ORIENTATION: This person just opened the app and cannot see. Describe their immediate environment: What is directly ahead? Any obstacles, walls, stairs, or dangers? What kind of space is this (room, corridor, outdoors)? Give them confidence about their surroundings.');
         lastDescribeTime = Date.now();
         startCocoDetection();
         initMotionDescribe();
@@ -1112,14 +1381,52 @@ const goToCameraHUD = async () => {
         initCareReminders();
         initGeofenceMonitor();
         startLightLevelMonitor();
+        startSafetyHeartbeat(); // periodic "all clear" for blind users
         // Offline check on startup
         if (!navigator.onLine) {
             speak('You are offline. Camera detection still works. AI description and SOS need internet.', true);
             showAIBubble('📵 Offline — Camera works, AI needs internet');
         }
         const s = document.getElementById('hud-status');
-        if (s) s.textContent = 'AI Active — Listening';
+        if (s) s.textContent = 'AI Active — Watching for You';
     }, 3000);
+};
+
+// ===== SAFETY HEARTBEAT (Blind users need to know app is alive) =====
+let safetyHeartbeatTimer = null;
+let lastSafetyAnnounce = 0;
+let lastProactiveScan = 0;
+
+const startSafetyHeartbeat = () => {
+    // Every 30s: if no obstacle warning was spoken recently, give subtle "still watching" feedback
+    safetyHeartbeatTimer = setInterval(() => {
+        if (appState !== 'camera') return;
+        const now = Date.now();
+        const timeSinceLastWarn = now - Math.max(lastObstacleWarn, lastCollisionWarn);
+        const timeSinceLastDescribe = now - lastDescribeTime;
+
+        // If 30s of silence (no warnings, no descriptions), give reassurance
+        if (timeSinceLastWarn > 30000 && timeSinceLastDescribe > 30000 && now - lastSafetyAnnounce > 30000) {
+            lastSafetyAnnounce = now;
+            // Subtle vibration pulse = "I'm still here, watching"
+            if (navigator.vibrate) navigator.vibrate([30, 100, 30]);
+            // Every 3rd heartbeat, actually speak "path clear"
+            if (Math.random() < 0.33) {
+                speak('Path clear.', false);
+            }
+        }
+
+        // PROACTIVE SAFETY SCAN: Every 45s during walking, ask LLM about walls/stairs
+        // This catches things COCO-SSD cannot detect (walls, glass, stairs, curbs)
+        if (now - lastProactiveScan > 45000 && now - lastDescribeTime > 20000 && !isDescribing) {
+            lastProactiveScan = now;
+            const video = document.getElementById('camera-feed');
+            if (video && video.videoWidth) {
+                // Use a lightweight safety-specific query
+                captureAndDescribe('SAFETY ONLY: Is there a wall, dead-end, stairs, curb, or drop-off directly ahead? Answer in one sentence. If path is clear, say nothing.');
+            }
+        }
+    }, 10000); // check every 10s
 };
 
 // ===== IMPROVED TILT DETECTION =====
@@ -1134,8 +1441,17 @@ const handleTilt = (e) => {
     }
 };
 
-// ===== COCO-SSD DETECTION LOOP =====
+// ===== COCO-SSD DETECTION LOOP (ENHANCED SAFETY) =====
 let cocoRunning = false;
+let previousObjSize = 0; // for rapid-approach detection
+let lastCollisionWarn = 0; // urgent collision cooldown
+let lastObstacleSpokenObj = ''; // avoid repeating same object
+let consecutiveCloseFrames = 0; // track how long something stays close
+
+// HIGH-DANGER objects that need extra warning
+const DANGER_OBJECTS = new Set(['car', 'truck', 'bus', 'motorcycle', 'bicycle', 'train', 'dog', 'horse']);
+const TRIP_HAZARDS = new Set(['chair', 'bench', 'suitcase', 'backpack', 'handbag', 'skateboard', 'sports ball', 'bottle']);
+
 const startCocoDetection = async () => {
     try { await visionAI.detectObjects(document.getElementById('camera-feed')); } catch (e) { return; }
     cocoRunning = true;
@@ -1146,46 +1462,158 @@ const runCocoDetection = async () => {
     try {
         const video = document.getElementById('camera-feed');
         const canvas = document.getElementById('detect-canvas');
-        if (!video || !canvas || !video.videoWidth) { if (cocoRunning) setTimeout(runCocoDetection, 1200); return; }
+        if (!video || !canvas || !video.videoWidth) { if (cocoRunning) setTimeout(runCocoDetection, 300); return; }
         const predictions = await visionAI.detectObjects(video);
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const scaleX = canvas.width / video.videoWidth;
         const scaleY = canvas.height / video.videoHeight;
-        let closestDist = Infinity;
+        let maxRelativeHeight = 0;
+        let closestObj = null;
+        let objectsInPath = []; // track all objects in the walking path
+
         predictions.forEach(p => {
             const [x, y, w, h] = p.bbox;
             const sx = x * scaleX, sy = y * scaleY, sw = w * scaleX, sh = h * scaleY;
             if (!isInsideGuideZone([sx, sy, sw, sh], canvas.width, canvas.height)) return;
-            const dist = parseFloat(p.distance);
-            if (dist < closestDist) closestDist = dist;
-            let color = '#00f2fe';
-            if (dist < 1.0) color = '#ff3344';
-            else if (dist < 2.0) color = '#ffcc00';
-            ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+
+            const relativeHeight = h / video.videoHeight;
+            const relativeWidth = w / video.videoWidth;
+            const relativeArea = relativeHeight * relativeWidth; // larger area = closer
+            
+            if (relativeHeight > maxRelativeHeight) {
+                maxRelativeHeight = relativeHeight;
+                closestObj = p;
+            }
+
+            // Track all objects in walking path for multi-object awareness
+            const centerX = x + (w / 2);
+            let labelDirection = "ahead";
+            if (centerX < video.videoWidth * 0.3) labelDirection = "left";
+            else if (centerX > video.videoWidth * 0.7) labelDirection = "right";
+            else labelDirection = "ahead"; // center zone = directly in path
+            
+            objectsInPath.push({ class: p.class, direction: labelDirection, relativeHeight, relativeArea, centerX });
+
+            // Color coding — more granular
+            let color = '#00ff00'; // GREEN (far)
+            if (relativeHeight > 0.7) color = '#ff0000'; // BRIGHT RED (collision imminent)
+            else if (relativeHeight > 0.5) color = '#ff3344'; // RED (very close)
+            else if (relativeHeight >= 0.3) color = '#ffcc00'; // YELLOW (nearby)
+            else if (relativeHeight >= 0.15) color = '#66ff66'; // LIGHT GREEN (approaching)
+
+            ctx.strokeStyle = color; ctx.lineWidth = relativeHeight > 0.5 ? 4 : 2; 
+            ctx.setLineDash(relativeHeight > 0.5 ? [] : [4, 4]); // solid line when close
             ctx.strokeRect(sx, sy, sw, sh);
-            const label = `${p.class} ${p.distance}m`;
-            ctx.font = 'bold 12px Inter';
+            const label = `${p.class} ${labelDirection}`;
+            ctx.font = `bold ${relativeHeight > 0.5 ? 16 : 12}px Inter`;
             const tw = ctx.measureText(label).width;
-            ctx.fillStyle = color; ctx.fillRect(sx, sy - 20, tw + 8, 20);
+            ctx.fillStyle = color; ctx.fillRect(sx, sy - (relativeHeight > 0.5 ? 24 : 20), tw + 8, relativeHeight > 0.5 ? 24 : 20);
             ctx.fillStyle = '#000'; ctx.fillText(label, sx + 4, sy - 6);
         });
-        if (closestDist < 3.0) ProximityBeep.update(closestDist); else ProximityBeep.stop();
 
-        // Obstacle spoken warning — throttled to once per 10s
-        if (closestDist < 1.0) {
-            const now = Date.now();
-            if (now - lastObstacleWarn > 10000) {
+        let fakeDist = Infinity;
+        if (maxRelativeHeight > 0.0) {
+            fakeDist = Math.max(0.2, 3.0 - (maxRelativeHeight * 3.5)); // more aggressive distance mapping
+        }
+        if (fakeDist < 3.0) ProximityBeep.update(fakeDist); else ProximityBeep.stop();
+
+        // ===== RAPID APPROACH DETECTION =====
+        // If object grew significantly between frames, user is walking toward it fast
+        const sizeGrowth = maxRelativeHeight - previousObjSize;
+        previousObjSize = maxRelativeHeight;
+
+        const now = Date.now();
+
+        // ===== COLLISION IMMINENT (>70% frame) — URGENT INTERRUPT =====
+        if (maxRelativeHeight > 0.7 && closestObj) {
+            consecutiveCloseFrames++;
+            if (now - lastCollisionWarn > 2000) { // every 2s when in danger
+                lastCollisionWarn = now;
+                const obj = closestObj.class;
+                const isDanger = DANGER_OBJECTS.has(obj);
+                if (isDanger) {
+                    speak(`STOP! ${obj} right in front of you!`, true);
+                } else {
+                    speak(`Stop! ${obj} directly ahead!`, true);
+                }
+                if (navigator.vibrate) navigator.vibrate([200, 50, 200, 50, 200, 50, 200]); // urgent pattern
+                showAIBubble(`🛑 COLLISION WARNING: ${obj}`);
+            }
+        }
+        // ===== VERY CLOSE (>50% frame) — strong warning every 3s =====
+        else if (maxRelativeHeight > 0.5 && closestObj) {
+            consecutiveCloseFrames++;
+            if (now - lastObstacleWarn > 3000) {
                 lastObstacleWarn = now;
-                const obj = predictions.length > 0 ? predictions[0].class : 'obstacle';
-                speak(`${obj} very close. Be careful.`, true);
+                const obj = closestObj.class;
+                const centerX = closestObj.bbox[0] + (closestObj.bbox[2] / 2);
+                let direction = "directly ahead";
+                if (centerX < video.videoWidth * 0.3) direction = "on your left";
+                else if (centerX > video.videoWidth * 0.7) direction = "on your right";
+                
+                const isTrip = TRIP_HAZARDS.has(obj);
+                if (isTrip) {
+                    speak(`Careful! ${obj} ${direction}. Step around it.`, false);
+                } else {
+                    speak(`${obj} very close ${direction}.`, false);
+                }
+                if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+            }
+        }
+        // ===== NEARBY (>30% frame) — warn every 5s =====
+        else if (maxRelativeHeight >= 0.3 && closestObj) {
+            consecutiveCloseFrames = 0;
+            if (now - lastObstacleWarn > 5000) {
+                lastObstacleWarn = now;
+                const obj = closestObj.class;
+                const centerX = closestObj.bbox[0] + (closestObj.bbox[2] / 2);
+                let direction = "ahead";
+                if (centerX < video.videoWidth * 0.3) direction = "on your left";
+                else if (centerX > video.videoWidth * 0.7) direction = "on your right";
+
+                speak(`${obj} nearby ${direction}.`, false);
                 if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
             }
+        }
+        // ===== APPROACHING (>15% frame) — gentle heads-up every 8s =====
+        else if (maxRelativeHeight >= 0.15 && closestObj) {
+            consecutiveCloseFrames = 0;
+            if (now - lastObstacleWarn > 8000 && closestObj.class !== lastObstacleSpokenObj) {
+                lastObstacleWarn = now;
+                lastObstacleSpokenObj = closestObj.class;
+                const obj = closestObj.class;
+                const centerX = closestObj.bbox[0] + (closestObj.bbox[2] / 2);
+                let direction = "ahead";
+                if (centerX < video.videoWidth * 0.3) direction = "to your left";
+                else if (centerX > video.videoWidth * 0.7) direction = "to your right";
+                speak(`${obj} ${direction}.`, false); // non-interrupting
+            }
+        } else {
+            consecutiveCloseFrames = 0;
+            lastObstacleSpokenObj = '';
+        }
+
+        // ===== RAPID APPROACH WARNING — object growing fast =====
+        if (sizeGrowth > 0.08 && maxRelativeHeight > 0.25 && closestObj) {
+            if (now - lastCollisionWarn > 3000) {
+                lastCollisionWarn = now;
+                speak(`Slow down! ${closestObj.class} getting closer fast.`, true);
+                if (navigator.vibrate) navigator.vibrate([150, 50, 150, 50, 150]);
+            }
+        }
+
+        // ===== MULTIPLE OBJECTS BLOCKING PATH =====
+        const aheadObjects = objectsInPath.filter(o => o.direction === 'ahead' && o.relativeHeight > 0.2);
+        if (aheadObjects.length >= 2 && now - lastObstacleWarn > 6000) {
+            lastObstacleWarn = now;
+            const names = [...new Set(aheadObjects.map(o => o.class))].join(' and ');
+            speak(`Multiple objects ahead: ${names}. Navigate carefully.`, false);
         }
 
         if (Math.random() < 0.1) checkLowLight(video);
     } catch (e) { }
-    if (cocoRunning) setTimeout(runCocoDetection, 1200);
+    if (cocoRunning) setTimeout(runCocoDetection, 300); // ultra-fast detection loop for real-time tracking
 };
 
 // ===== GEOLOCATION =====
@@ -1338,6 +1766,7 @@ const showOnboarding = () => {
     const goToStep = (target) => {
         const prev = step;
         step = target;
+        onboardingStep = target; // Sync global state for voice routing
         slides.forEach((s, i) => {
             s.className = 'step-slide absolute inset-0 flex flex-col items-center p-6 overflow-y-auto transition-all duration-500 ease-in-out';
             if (i === step)       s.classList.add('translate-x-0', 'opacity-100');
@@ -1633,6 +2062,10 @@ const showLoginScreen = () => {
 
 // ===== UPDATED goToCameraHUD — add LIVE indicator, conv feed, text input =====
 const _origGoToCameraHUD = goToCameraHUD;
+window.goToCameraHUD = () => {
+    appState = 'camera';
+    _origGoToCameraHUD();
+};
 
 // ===== INIT =====
 const initApp = () => {

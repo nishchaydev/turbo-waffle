@@ -292,19 +292,25 @@ def trigger_sos():
     if not data: data = {}
     lat = data.get('latitude', '28.6139')
     lon = data.get('longitude', '77.2090')
-    # Log SOS to event feed for Guardian Dashboard
+    photo = data.get('photo', None)
     medical = data.get('medical_info', care_profile.get('medical_info', {}))
     event_log.append({
         "type": "sos",
         "lat": lat,
         "lon": lon,
-        "photo": data.get('photo', None),
+        "photo": photo,
         "medical_info": medical,
         "description": f"SOS at ({lat},{lon})",
         "time": datetime.now(timezone.utc).isoformat()
     })
     _save_event_log()
-    result = coordinator.route(f"emergency {lat} {lon}")
+    
+    # Bypass coordinator to pass full kwargs including photo
+    params = {"trigger": "manual", "latitude": lat, "longitude": lon}
+    if photo:
+        params["photo"] = photo
+    result = sos.run(params)
+    
     if isinstance(result, dict):
         return jsonify(result)
     return jsonify({"status": "success", "message": result})
@@ -415,6 +421,32 @@ def geofence_alert():
     })
     _save_event_log()
     return jsonify({"status": "alert_logged"})
+
+# ===== FALL DETECTION ALERT API =====
+@app.route('/api/fall-alert', methods=['POST'])
+def fall_alert():
+    data = request.get_json(silent=True) or {}
+    status = data.get('status', 'unknown')  # 'triggered' or 'cancelled'
+    lat = data.get('lat')
+    lon = data.get('lon')
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    if status == 'triggered':
+        description = f"🚨 FALL DETECTED — Auto-SOS triggered at ({lat},{lon})"
+        event_type = "fall_sos"
+    else:
+        description = f"⚠️ Fall detected — User responded OK"
+        event_type = "fall_cancelled"
+
+    event_log.append({
+        "type": event_type,
+        "description": description,
+        "lat": lat,
+        "lon": lon,
+        "time": now_iso
+    })
+    _save_event_log()
+    return jsonify({"status": "logged", "event_type": event_type})
 
 # ===== DAILY SAFETY REPORT =====
 @app.route('/api/daily-report')

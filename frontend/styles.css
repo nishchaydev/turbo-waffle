@@ -862,7 +862,112 @@ button, a, input, .ob-card, .ob-lang-btn {
     background: linear-gradient(135deg, var(--sathi-primary), #a78bfa) !important;
 }
 
+/* ===== FALL DETECTION ALERT OVERLAY ===== */
+#fall-alert-overlay {
+    position: fixed; inset: 0;
+    background: rgba(239, 68, 68, 0.95);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    z-index: 999999;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+#fall-alert-overlay.visible {
+    opacity: 1; pointer-events: auto;
+    animation: fallAlertPulse 2s infinite ease-in-out;
+}
+@keyframes fallAlertPulse {
+    0%, 100% { background: rgba(239, 68, 68, 0.95); }
+    50% { background: rgba(185, 28, 28, 0.98); }
+}
+.fall-alert-content {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; gap: 12px;
+    padding: 32px 24px;
+    max-width: 400px; width: 90%;
+}
+.fall-alert-icon {
+    font-size: 5rem; line-height: 1;
+    animation: fallIconShake 0.5s infinite;
+    margin-bottom: 4px;
+}
+@keyframes fallIconShake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+}
+.fall-alert-title {
+    font-size: 2.2rem; font-weight: 800;
+    color: #fff; letter-spacing: -0.5px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.fall-alert-subtitle {
+    font-size: 1.4rem; font-weight: 600;
+    color: rgba(255,255,255,0.9);
+    margin-bottom: 8px;
+}
+.fall-alert-countdown {
+    font-size: 5rem; font-weight: 900;
+    color: #fff; line-height: 1;
+    text-shadow: 0 0 30px rgba(255,255,255,0.5);
+    animation: countdownPulse 1s infinite;
+}
+@keyframes countdownPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+.fall-alert-timer-label {
+    font-size: 0.85rem; font-weight: 600;
+    color: rgba(255,255,255,0.7);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+}
+.fall-alert-buttons {
+    display: flex; gap: 14px;
+    width: 100%;
+}
+.fall-btn-ok {
+    flex: 1; padding: 20px 16px;
+    background: #fff; color: #16a34a;
+    border: none; border-radius: 16px;
+    font-size: 1.15rem; font-weight: 800;
+    cursor: pointer; font-family: var(--font);
+    transition: all 0.2s;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+.fall-btn-ok:hover, .fall-btn-ok:focus {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.fall-btn-sos {
+    flex: 1; padding: 20px 16px;
+    background: rgba(0,0,0,0.4); color: #fff;
+    border: 2px solid rgba(255,255,255,0.5);
+    border-radius: 16px;
+    font-size: 1.15rem; font-weight: 800;
+    cursor: pointer; font-family: var(--font);
+    transition: all 0.2s;
+}
+.fall-btn-sos:hover, .fall-btn-sos:focus {
+    background: rgba(0,0,0,0.6);
+    border-color: #fff;
+    transform: translateY(-2px);
+}
+.fall-alert-hint {
+    font-size: 0.9rem;
+    color: rgba(255,255,255,0.65);
+    margin-top: 8px;
+}
+.fall-alert-hint strong {
+    color: #fff;
+}
+
 @media (max-width: 380px) {
     .login-cards { grid-template-columns: 1fr; }
+    .fall-alert-title { font-size: 1.8rem; }
+    .fall-alert-countdown { font-size: 4rem; }
+    .fall-alert-buttons { flex-direction: column; }
 }
 
