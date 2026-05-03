@@ -2001,14 +2001,14 @@ const showLoginScreen = () => {
             <div class="login-tagline">साथी — Your Accessibility Companion</div>
         </div>
         <div class="login-cards" role="group" aria-label="Select your role">
-            <div class="login-card" id="lc-user" tabindex="0" role="button" aria-label="I Need Assistance, for myself">
+            <div class="login-card" id="lc-user" tabindex="0" role="button" aria-label="User, for myself">
                 <span class="lc-icon">👤</span>
-                <span class="lc-title">I Need Assistance</span>
+                <span class="lc-title">User</span>
                 <span class="lc-desc">For myself</span>
             </div>
-            <div class="login-card" id="lc-guardian" tabindex="0" role="button" aria-label="I Provide Support, family member or caregiver">
+            <div class="login-card" id="lc-guardian" tabindex="0" role="button" aria-label="Guardian, family member or caregiver">
                 <span class="lc-icon">🛡️</span>
-                <span class="lc-title">I Provide Support</span>
+                <span class="lc-title">Guardian</span>
                 <span class="lc-desc">Family member or caregiver</span>
             </div>
         </div>
@@ -2019,7 +2019,7 @@ const showLoginScreen = () => {
 
     // Voice announce
     setTimeout(() => {
-        speak('Welcome to Sathi. Tap I Need Assistance or I Provide Support, then tap continue.', true);
+        speak('Welcome to Sathi. Tap User or Guardian, then tap continue.', true);
     }, 500);
 
     const userCard = document.getElementById('lc-user');
@@ -2032,7 +2032,7 @@ const showLoginScreen = () => {
         guardianCard.classList.toggle('selected', role === 'guardian');
         continueBtn.disabled = false;
         continueBtn.textContent = role === 'guardian' ? 'Continue to Dashboard →' : 'Continue →';
-        speak(role === 'user' ? 'Assistance selected' : 'Support selected', false);
+        speak(role === 'user' ? 'User selected' : 'Guardian selected', false);
     };
 
     userCard.addEventListener('click', () => selectCard('user'));
