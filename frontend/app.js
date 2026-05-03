@@ -824,10 +824,10 @@ const routeVoiceCommand = async (transcript) => {
     const t = transcript.toLowerCase().trim();
 
     if (appState === 'login') {
-        if (['user', 'me', 'i am the user', 'for me'].some(k => t.includes(k))) {
+        if (['user', 'me', 'i am the user', 'for me', 'assistance', 'need assistance'].some(k => t.includes(k))) {
             const btn = document.getElementById('lc-user');
             if (btn) btn.click();
-        } else if (['guardian', 'someone', 'for someone', 'i am a guardian'].some(k => t.includes(k))) {
+        } else if (['guardian', 'someone', 'for someone', 'i am a guardian', 'support', 'provide support'].some(k => t.includes(k))) {
             const btn = document.getElementById('lc-guardian');
             if (btn) btn.click();
         } else if (['continue', 'next', 'go', 'start'].some(k => t.includes(k))) {
@@ -1655,6 +1655,7 @@ const LANGUAGES = [
 ];
 
 const showOnboarding = () => {
+    appState = 'onboarding'; // Enable keyword-based voice routing
     const savedRole = localStorage.getItem('sathi_role');
     const profile = { userType: savedRole === 'user' ? 'self' : (savedRole === 'guardian' ? 'guardian' : null), disabilities: [], guardian: { name: '', phone: '', homeTime: '' }, language: 'en-US' };
     let step = savedRole ? 1 : 0;
@@ -1710,7 +1711,7 @@ const showOnboarding = () => {
             <!-- STEP 3: Guardian setup -->
             <div class="step-slide absolute inset-0 flex flex-col items-center p-6 overflow-y-auto transition-all duration-500 ease-in-out translate-x-full opacity-0 pointer-events-none" data-step="2">
                 <h2 class="text-3xl font-newsreader font-bold text-center mb-2">Emergency Contact</h2>
-                <p class="text-lg opacity-70 text-center mb-8">Who should Sathi alert?</p>
+                <p class="text-lg opacity-70 text-center mb-8">Who should Sathi alert? (Optional)</p>
                 <div class="flex flex-col gap-5 w-full max-w-[420px]" id="guardian-form">
                     <div class="flex flex-col gap-1">
                         <label for="g-name" class="text-sm font-bold uppercase tracking-wider">Guardian Name</label>
@@ -1786,7 +1787,7 @@ const showOnboarding = () => {
         } else if (step === 1) {
             speak('What are your support needs? Say Visual, Hearing, Dyslexia, Motor, or Elderly. Then say Next.', true);
         } else if (step === 2) {
-            speak('Please enter emergency contact details. You can say "Name is [Your Name]" or "Number is [Your 10 digit number]".', true);
+            speak('Please enter emergency contact details. You can say "Name is [Your Name]" or "Number is [Your 10 digit number]". Or just say "Skip" to do this later.', true);
         } else if (step === 3) {
             speak('Choose your language. Say English, Hindi, Marathi, Tamil, Bengali, Gujarati, or Urdu.', true);
         }
@@ -1839,10 +1840,10 @@ const showOnboarding = () => {
         const name = nameEl.value.trim();
         const phone = phoneEl.value.trim();
 
-        if (!name) { errName.textContent = 'Name is required'; nameEl.classList.add('invalid'); valid = false; }
+        if (name) { errName.textContent = ''; nameEl.classList.remove('invalid'); }
         else { errName.textContent = ''; nameEl.classList.remove('invalid'); }
 
-        if (!/^\d{10}$/.test(phone)) { errPhone.textContent = 'Enter a valid 10-digit phone number'; phoneEl.classList.add('invalid'); valid = false; }
+        if (phone && !/^\d{10}$/.test(phone)) { errPhone.textContent = 'Enter a valid 10-digit phone number'; phoneEl.classList.add('invalid'); valid = false; }
         else { errPhone.textContent = ''; phoneEl.classList.remove('invalid'); }
 
         if (valid) {
@@ -2000,27 +2001,25 @@ const showLoginScreen = () => {
             <div class="login-tagline">साथी — Your Accessibility Companion</div>
         </div>
         <div class="login-cards" role="group" aria-label="Select your role">
-            <div class="login-card" id="lc-user" tabindex="0" role="button" aria-label="I am the User, person with disability">
+            <div class="login-card" id="lc-user" tabindex="0" role="button" aria-label="I Need Assistance, for myself">
                 <span class="lc-icon">👤</span>
-                <span class="lc-title">I am the User</span>
-                <span class="lc-desc">Person with disability</span>
+                <span class="lc-title">I Need Assistance</span>
+                <span class="lc-desc">For myself</span>
             </div>
-            <div class="login-card" id="lc-guardian" tabindex="0" role="button" aria-label="I am a Guardian, family member or caregiver">
+            <div class="login-card" id="lc-guardian" tabindex="0" role="button" aria-label="I Provide Support, family member or caregiver">
                 <span class="lc-icon">🛡️</span>
-                <span class="lc-title">I am a Guardian</span>
+                <span class="lc-title">I Provide Support</span>
                 <span class="lc-desc">Family member or caregiver</span>
             </div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;max-width:400px;">
-            <input type="text" class="login-pin-input" id="login-pin" placeholder="Enter PIN (optional)" aria-label="Enter PIN" style="width:100%;border:2px solid #1A1A1A;background:#FFFFFF;padding:16px;font-size:0.9rem;font-family:'Work Sans',sans-serif;letter-spacing:2px;text-align:center;outline:none;">
             <button class="login-continue-btn" id="login-continue" disabled aria-label="Continue">Continue →</button>
-            <span style="font-size:0.7rem;opacity:0.4;letter-spacing:1px;text-transform:uppercase;font-family:'Work Sans',sans-serif;color:#1A1A1A;">🔒 Your data stays on this device only</span>
         </div>
     </div>`;
 
     // Voice announce
     setTimeout(() => {
-        speak('Welcome to Sathi. Tap I am the User or I am a Guardian, then tap continue.', true);
+        speak('Welcome to Sathi. Tap I Need Assistance or I Provide Support, then tap continue.', true);
     }, 500);
 
     const userCard = document.getElementById('lc-user');
@@ -2033,7 +2032,7 @@ const showLoginScreen = () => {
         guardianCard.classList.toggle('selected', role === 'guardian');
         continueBtn.disabled = false;
         continueBtn.textContent = role === 'guardian' ? 'Continue to Dashboard →' : 'Continue →';
-        speak(role === 'user' ? 'User selected' : 'Guardian selected', false);
+        speak(role === 'user' ? 'Assistance selected' : 'Support selected', false);
     };
 
     userCard.addEventListener('click', () => selectCard('user'));
