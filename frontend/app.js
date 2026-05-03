@@ -15,6 +15,8 @@ import { getTranslation } from './services/translations.js';
 import * as visionAI from './services/visionService.js';
 
 // ===== STATE =====
+let appState = 'login'; // 'login', 'onboarding', 'camera'
+let onboardingStep = 0;
 let lang = 'en-US';
 let stream = null;
 let isCaptionMode = false;
@@ -24,12 +26,18 @@ let flashlightOn = false;
 let recognition = null;
 let recognitionActive = false;
 let transcriptBuffer = '';
-let lastObstacleWarn = 0;       // Throttle obstacle spoken warnings
-let lastUserCommandTime = 0;    // Track user activity for silence timer
-let lastDescribeTime = 0;       // Motion-triggered describe throttle
-let motionBuffer = [];           // Accelerometer rolling window
-let wakeLock = null;             // Screen Wake Lock
-let lastTiltWarn = 0;            // Throttle tilt warnings
+let lastObstacleWarn = 0;
+let lastUserCommandTime = 0;
+let lastDescribeTime = 0;
+let motionBuffer = [];
+let wakeLock = null;
+let lastTiltWarn = 0;
+let conversationHistory = [];
+const CHIP_SETS = [
+    ["Is it safe?", "Read text", "What's that?"],
+    ["Tell me more", "Any hazards?", "Describe left side"]
+];
+let chipSetIndex = 0;
 const app = document.getElementById('app');
 
 // ===== SCENE MEMORY =====
@@ -606,11 +614,131 @@ const updateMicUI = (active) => {
     const l = document.getElementById('mic-label');
     if (d) d.className = active ? 'mic-dot' : 'mic-dot paused';
     if (l) l.textContent = active ? 'LISTENING' : 'PAUSED';
+
+    const globalMic = document.getElementById('global-mic-indicator');
+    if (globalMic) {
+        if (active) {
+            globalMic.classList.remove('-translate-y-[200%]', 'opacity-0', 'pointer-events-none');
+            globalMic.classList.add('translate-y-0', 'opacity-100');
+        } else {
+            globalMic.classList.add('-translate-y-[200%]', 'opacity-0', 'pointer-events-none');
+            globalMic.classList.remove('translate-y-0', 'opacity-100');
+        }
+    }
 };
 
 // ===== VOICE ROUTING =====
 const routeVoiceCommand = async (transcript) => {
     const t = transcript.toLowerCase().trim();
+
+    if (appState === 'login') {
+        if (['user', 'me', 'i am the user', 'for me'].some(k => t.includes(k))) {
+            const btn = document.getElementById('lc-user');
+            if (btn) btn.click();
+        } else if (['guardian', 'someone', 'for someone', 'i am a guardian'].some(k => t.includes(k))) {
+            const btn = document.getElementById('lc-guardian');
+            if (btn) btn.click();
+        } else if (['continue', 'next', 'go', 'start'].some(k => t.includes(k))) {
+            const btn = document.getElementById('login-continue');
+            if (btn && !btn.disabled) btn.click();
+        }
+        return;
+    }
+    
+    if (appState === 'onboarding') {
+        if (onboardingStep === 0) {
+            if (['me', 'for me', 'user'].some(k => t.includes(k))) {
+                const btn = document.getElementById('card-self');
+                if (btn) btn.click();
+            } else if (['someone', 'for someone', 'guardian'].some(k => t.includes(k))) {
+                const btn = document.getElementById('card-guardian');
+                if (btn) btn.click();
+            } else if (['next', 'continue', 'go'].some(k => t.includes(k))) {
+                const btn = document.getElementById('next-0');
+                if (btn && !btn.disabled) btn.click();
+            }
+        } else if (onboardingStep === 1) {
+            if (['visual', 'vision', 'blind', 'see'].some(k => t.includes(k))) {
+                const btn = document.querySelector('[data-dis="visual"]');
+                if (btn) btn.click();
+            } else if (['hearing', 'deaf', 'audio'].some(k => t.includes(k))) {
+                const btn = document.querySelector('[data-dis="hearing"]');
+                if (btn) btn.click();
+            } else if (['dyslexia', 'reading', 'read'].some(k => t.includes(k))) {
+                const btn = document.querySelector('[data-dis="dyslexia"]');
+                if (btn) btn.click();
+            } else if (['motor', 'movement', 'wheelchair', 'walk'].some(k => t.includes(k))) {
+                const btn = document.querySelector('[data-dis="motor"]');
+                if (btn) btn.click();
+            } else if (['elderly', 'old', 'age', 'senior'].some(k => t.includes(k))) {
+                const btn = document.querySelector('[data-dis="elderly"]');
+                if (btn) btn.click();
+            } else if (['other', 'something else'].some(k => t.includes(k))) {
+                const btn = document.querySelector('[data-dis="other"]');
+                if (btn) btn.click();
+            }
+            if (['next', 'continue', 'go'].some(k => t.includes(k))) {
+                const btn = document.getElementById('next-1');
+                if (btn && !btn.disabled) btn.click();
+            } else if (['back', 'previous'].some(k => t.includes(k))) {
+                const btn = document.getElementById('back-1');
+                if (btn) btn.click();
+            }
+        } else if (onboardingStep === 2) {
+            if (t.includes('name is ')) {
+                const nameMatch = t.match(/name is (.+)/);
+                if (nameMatch) {
+                    const input = document.getElementById('g-name');
+                    if (input) { input.value = nameMatch[1].trim(); input.dispatchEvent(new Event('input')); speak('Name set to ' + nameMatch[1], false); }
+                }
+            } else if (t.includes('number is ') || t.includes('phone is ')) {
+                const phoneMatch = t.match(/(number is|phone is) (.+)/);
+                if (phoneMatch) {
+                    const phoneRaw = phoneMatch[2].replace(/\D/g, '');
+                    const input = document.getElementById('g-phone');
+                    if (input && phoneRaw) { input.value = phoneRaw; input.dispatchEvent(new Event('input')); speak('Phone set to ' + phoneRaw.split('').join(' '), false); }
+                }
+            }
+            if (['next', 'continue', 'go'].some(k => t.includes(k))) {
+                const btn = document.getElementById('next-2');
+                if (btn && !btn.disabled) btn.click();
+            } else if (['back', 'previous'].some(k => t.includes(k))) {
+                const btn = document.getElementById('back-2');
+                if (btn) btn.click();
+            }
+        } else if (onboardingStep === 3) {
+            if (['english'].some(k => t.includes(k))) {
+                const btn = document.querySelector('[data-lang="en-US"]');
+                if (btn) btn.click();
+            } else if (['hindi', 'hind'].some(k => t.includes(k))) {
+                const btn = document.querySelector('[data-lang="hi-IN"]');
+                if (btn) btn.click();
+            } else if (['marathi'].some(k => t.includes(k))) {
+                const btn = document.querySelector('[data-lang="mr-IN"]');
+                if (btn) btn.click();
+            } else if (['tamil'].some(k => t.includes(k))) {
+                const btn = document.querySelector('[data-lang="ta-IN"]');
+                if (btn) btn.click();
+            } else if (['bengali', 'bangla'].some(k => t.includes(k))) {
+                const btn = document.querySelector('[data-lang="bn-IN"]');
+                if (btn) btn.click();
+            } else if (['gujarati'].some(k => t.includes(k))) {
+                const btn = document.querySelector('[data-lang="gu-IN"]');
+                if (btn) btn.click();
+            } else if (['urdu'].some(k => t.includes(k))) {
+                const btn = document.querySelector('[data-lang="ur-IN"]');
+                if (btn) btn.click();
+            }
+            if (['next', 'continue', 'go'].some(k => t.includes(k))) {
+                const btn = document.getElementById('next-3');
+                if (btn) btn.click();
+            } else if (['back', 'previous'].some(k => t.includes(k))) {
+                const btn = document.getElementById('back-3');
+                if (btn) btn.click();
+            }
+        }
+        return;
+    }
 
     // SOS
     if (['help', 'sos', 'emergency', 'bachao', 'बचाओ', 'madad', 'मदद'].some(k => t.includes(k))) {
@@ -755,13 +883,26 @@ const captureAndDescribe = async (query = null) => {
         if (!video || !video.videoWidth) { isDescribing = false; if (btn) btn.classList.remove('loading'); return; }
         const imageB64 = captureGuideZoneFrame(video);
         const memoryContext = SceneMemory.getContext();
+        const systemPrompt = `You are SATHI, AI eyes for a visually impaired person. Be concise. Max 2 sentences. You have context of recent conversation below. Answer follow-up questions naturally without re-explaining everything.${memoryContext}`;
+        const messages = [
+            { role: "system", content: systemPrompt },
+            ...conversationHistory.slice(-12),
+            { role: "user", content: query || "What do you see?" }
+        ];
         const res = await fetch('/api/vision', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: imageB64, language: lang, query: query, memory: memoryContext })
+            body: JSON.stringify({ image: imageB64, language: lang, query: query, memory: memoryContext, messages: messages })
         });
         const data = await res.json();
         const desc = data.description || 'Could not analyze the scene.';
+        conversationHistory.push(
+            { role: "user", content: query || "describe" },
+            { role: "assistant", content: desc }
+        );
+        if (conversationHistory.length > 12) {
+            conversationHistory = conversationHistory.slice(-12);
+        }
         if (desc !== lastDescription) {
             lastDescription = desc;
             if (dyslexiaModeActive && window._dyslexiaSpeak) window._dyslexiaSpeak(desc, true);
@@ -769,6 +910,8 @@ const captureAndDescribe = async (query = null) => {
             showAIBubble(desc);
             SceneMemory.add(desc);
         }
+        updateConvFeed();
+        showQuickChips();
     } catch (e) {
         console.error('Vision error:', e);
         if (!navigator.onLine) speak('No internet. I can still detect nearby objects using the camera.', true);
@@ -822,6 +965,7 @@ const goToCameraHUD = async () => {
         <canvas id="detect-canvas" class="absolute top-0 left-0 w-full h-full pointer-events-none"></canvas>
         
         <div id="offline-badge" style="display:none;" class="absolute top-4 right-4 bg-error text-surface px-3 py-1 text-xs font-bold border-2 border-primary shadow-brutal z-[9999]">OFFLINE</div>
+        <div class="rt-indicator" aria-label="Live camera active"><span class="rt-dot"></span>LIVE</div>
         
         <!-- Top Bar -->
         <div class="absolute top-0 left-0 w-full p-4 flex justify-between items-start z-10">
@@ -836,7 +980,8 @@ const goToCameraHUD = async () => {
         <div class="absolute top-24 left-4 bg-surface text-primary border-2 border-primary font-bold px-2 py-1 text-xs shadow-brutal transition-all" id="memory-badge">🧠 MEMORY: 0</div>
         
         <!-- Bottom Controls -->
-        <div class="absolute bottom-20 left-0 w-full p-4 flex flex-col gap-4 z-10">
+        <div class="absolute bottom-20 left-0 w-full p-4 flex flex-col gap-4 z-10" id="hud-bottom-area">
+            <div class="conv-feed" id="conv-feed" aria-label="Conversation history" role="log" aria-live="polite"></div>
             <div class="ai-bubble hidden bg-surface border-2 border-primary shadow-brutal p-3 max-w-[80%] self-start transition-all" id="ai-bubble">
                 <span class="block text-xs font-bold uppercase mb-1">SATHI</span>
                 <span class="body font-newsreader text-sm font-medium">Initializing camera...</span>
@@ -853,6 +998,10 @@ const goToCameraHUD = async () => {
                     <button class="capture-btn w-12 h-12 bg-warning border-2 border-primary shadow-brutal flex items-center justify-center text-xl hover:-translate-y-1 active:translate-y-1 active:shadow-none transition-all" id="currency-btn" aria-label="Detect currency">💰</button>
                     <button class="capture-btn w-16 h-16 bg-surface border-4 border-primary shadow-brutal flex items-center justify-center text-3xl hover:-translate-y-1 active:translate-y-1 active:shadow-none transition-all" id="capture-btn" aria-label="Describe scene">👁️</button>
                 </div>
+            </div>
+            <div class="sathi-text-input">
+                <input type="text" id="sathi-text-field" placeholder="Type a question…" aria-label="Type a question for SATHI">
+                <button id="sathi-text-send" aria-label="Send question">➤</button>
             </div>
         </div>
         
@@ -888,6 +1037,20 @@ const goToCameraHUD = async () => {
     document.getElementById('currency-btn')?.addEventListener('click', () => detectCurrency());
     document.getElementById('sos-btn')?.addEventListener('click', () => triggerSOS());
     document.getElementById('mic-indicator')?.addEventListener('click', () => { if (recognitionActive) stopRecognition(); else startRecognition(); });
+
+    // Text input for motor-impaired users
+    const textSend = document.getElementById('sathi-text-send');
+    const textField = document.getElementById('sathi-text-field');
+    if (textSend && textField) {
+        const sendText = () => {
+            const q = textField.value.trim();
+            if (!q) return;
+            textField.value = '';
+            captureAndDescribe(q);
+        };
+        textSend.addEventListener('click', sendText);
+        textField.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendText(); } });
+    }
 
     // Tilt detection
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -936,10 +1099,10 @@ const goToCameraHUD = async () => {
     });
 
     // Start — single initial describe, then go silent. Mic always active.
-    setupRecognition();
+    if (!recognition) setupRecognition();
     speak(getTranslation(lang, 'promptLang'), true);
     setTimeout(() => {
-        startRecognition();
+        if (!recognitionActive) startRecognition();
         captureAndDescribe();
         lastDescribeTime = Date.now();
         startCocoDetection();
@@ -1064,20 +1227,21 @@ const LANGUAGES = [
 ];
 
 const showOnboarding = () => {
-    const profile = { userType: null, disabilities: [], guardian: { name: '', phone: '', homeTime: '' }, language: 'en-US' };
-    let step = 0;
+    const savedRole = localStorage.getItem('sathi_role');
+    const profile = { userType: savedRole === 'user' ? 'self' : (savedRole === 'guardian' ? 'guardian' : null), disabilities: [], guardian: { name: '', phone: '', homeTime: '' }, language: 'en-US' };
+    let step = savedRole ? 1 : 0;
 
     // --- Build HTML ---
     app.innerHTML = `
     <div class="fixed inset-0 bg-background text-primary font-worksans flex flex-col z-[10000] overflow-hidden" id="onboarding">
         <!-- Step dots -->
         <div class="flex gap-3 justify-center pt-8 pb-3 shrink-0" id="step-dots">
-            ${[0,1,2,3,4].map(i => `<div class="w-3 h-3 border-2 border-[#1A1A1A] transition-all ${i === 0 ? 'bg-primary' : 'bg-transparent'}" data-dot="${i}"></div>`).join('')}
+            ${[0,1,2,3,4].map(i => `<div class="w-3 h-3 border-2 border-[#1A1A1A] transition-all ${i === step ? 'bg-primary' : (i < step ? 'bg-primary opacity-50' : 'bg-transparent')}" data-dot="${i}"></div>`).join('')}
         </div>
         <div class="flex-1 relative overflow-hidden" id="step-viewport">
 
             <!-- STEP 1: Who needs help? -->
-            <div class="step-slide absolute inset-0 flex flex-col items-center p-6 overflow-y-auto transition-all duration-500 ease-in-out translate-x-0 opacity-100" data-step="0">
+            <div class="step-slide absolute inset-0 flex flex-col items-center p-6 overflow-y-auto transition-all duration-500 ease-in-out ${step === 0 ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 pointer-events-none'}" data-step="0">
                 <h2 class="text-3xl font-newsreader font-bold text-center mb-2">Who is Sathi for?</h2>
                 <p class="text-lg opacity-70 text-center mb-8">Choose the option that fits best</p>
                 <div class="grid grid-cols-2 gap-4 w-full max-w-[420px]">
@@ -1098,7 +1262,7 @@ const showOnboarding = () => {
             </div>
 
             <!-- STEP 2: Disability multi-select -->
-            <div class="step-slide absolute inset-0 flex flex-col items-center p-6 overflow-y-auto transition-all duration-500 ease-in-out translate-x-full opacity-0 pointer-events-none" data-step="1">
+            <div class="step-slide absolute inset-0 flex flex-col items-center p-6 overflow-y-auto transition-all duration-500 ease-in-out ${step === 1 ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'}" data-step="1">
                 <h2 class="text-3xl font-newsreader font-bold text-center mb-2">Support Needs</h2>
                 <p class="text-lg opacity-70 text-center mb-8">Select all that apply</p>
                 <div class="grid grid-cols-2 gap-3 w-full max-w-[420px]" id="disability-grid">
@@ -1130,11 +1294,7 @@ const showOnboarding = () => {
                         <input id="g-phone" type="tel" placeholder="10 digit number" maxlength="10" inputmode="numeric" class="bg-surface border-2 border-[#1A1A1A] p-4 text-lg outline-none focus:ring-2 focus:ring-primary focus:-translate-y-1 focus:shadow-brutal transition-all">
                         <span class="text-error text-sm min-h-[1.2em]" id="err-phone"></span>
                     </div>
-                    <div class="flex flex-col gap-1">
-                        <label for="g-time" class="text-sm font-bold uppercase tracking-wider">Expected Home Time</label>
-                        <input id="g-time" type="time" value="18:00" class="bg-surface border-2 border-[#1A1A1A] p-4 text-lg outline-none focus:ring-2 focus:ring-primary focus:-translate-y-1 focus:shadow-brutal transition-all">
-                        <span class="text-error text-sm min-h-[1.2em]" id="err-time"></span>
-                    </div>
+
                 </div>
                 <div class="flex gap-3 mt-auto w-full max-w-[420px] pt-5">
                     <button class="flex-1 bg-background text-primary border-2 border-[#1A1A1A] font-bold py-4 transition-all hover:-translate-y-1 hover:shadow-brutal" id="back-2">← Back</button>
@@ -1190,7 +1350,27 @@ const showOnboarding = () => {
             else if (i < step)    d.classList.add('bg-primary', 'opacity-50');
             else                  d.classList.add('bg-transparent');
         });
+
+        // Voice Prompts for Onboarding
+        if (step === 0) {
+            speak('Who is Sathi for? Please say "For Me" or "For Someone".', true);
+        } else if (step === 1) {
+            speak('What are your support needs? Say Visual, Hearing, Dyslexia, Motor, or Elderly. Then say Next.', true);
+        } else if (step === 2) {
+            speak('Please enter emergency contact details. You can say "Name is [Your Name]" or "Number is [Your 10 digit number]".', true);
+        } else if (step === 3) {
+            speak('Choose your language. Say English, Hindi, Marathi, Tamil, Bengali, Gujarati, or Urdu.', true);
+        }
     };
+
+    // Initial Voice Prompt
+    setTimeout(() => {
+        if (step === 0) {
+            speak('Who is Sathi for? Please say "For Me" or "For Someone".', true);
+        } else if (step === 1) {
+            speak('What are your support needs? Say Visual, Hearing, Dyslexia, Motor, or Elderly. Then say Next.', true);
+        }
+    }, 500);
 
     // --- STEP 1 logic ---
     const next0 = document.getElementById('next-0');
@@ -1239,7 +1419,6 @@ const showOnboarding = () => {
         if (valid) {
             profile.guardian.name = name;
             profile.guardian.phone = phone;
-            profile.guardian.homeTime = document.getElementById('g-time').value;
         }
         return valid;
     };
@@ -1290,30 +1469,194 @@ const launchCameraWithProfile = (profile) => {
     guardianPhone = profile.guardian?.phone || null;
 
     goToCameraHUD().then(() => {
-        // Auto-start modes based on disabilities
-        if (profile.disabilities.includes('visual')) {
-            // Auto-describe mode is already started in goToCameraHUD
-        }
         if (profile.disabilities.includes('hearing')) {
             isCaptionMode = true;
             transcriptBuffer = '';
         }
-        // Dyslexia mode — auto-activate if profile has it
         if (profile.disabilities.includes('dyslexia')) {
             setTimeout(() => activateDyslexiaMode(), 1000);
         }
     });
 };
 
+// ===== CONVERSATION FEED UI =====
+const updateConvFeed = () => {
+    const container = document.getElementById('conv-feed');
+    if (!container) return;
+    const recent = conversationHistory.slice(-6);
+    container.innerHTML = recent.map(m => {
+        const cls = m.role === 'user' ? 'user' : 'assistant';
+        const text = typeof m.content === 'string' ? m.content : (m.content || '');
+        return `<div class="conv-msg ${cls}">${text.length > 80 ? text.slice(0, 80) + '…' : text}</div>`;
+    }).join('');
+    container.scrollTop = container.scrollHeight;
+};
+
+const showQuickChips = () => {
+    const existing = document.getElementById('quick-chips');
+    if (existing) existing.remove();
+    const container = document.getElementById('hud-bottom-area');
+    if (!container) return;
+    const chips = CHIP_SETS[chipSetIndex % CHIP_SETS.length];
+    chipSetIndex++;
+    const div = document.createElement('div');
+    div.className = 'quick-chips';
+    div.id = 'quick-chips';
+    div.setAttribute('role', 'group');
+    div.setAttribute('aria-label', 'Quick reply options');
+    chips.forEach(text => {
+        const btn = document.createElement('button');
+        btn.className = 'quick-chip';
+        btn.textContent = text;
+        btn.setAttribute('aria-label', text);
+        btn.addEventListener('click', () => {
+            div.remove();
+            captureAndDescribe(text);
+        });
+        div.appendChild(btn);
+    });
+    const aiB = document.getElementById('ai-bubble');
+    if (aiB) aiB.after(div);
+    else container.prepend(div);
+};
+
+// ===== ACCESSIBILITY TOOLBAR =====
+const injectA11yToolbar = () => {
+    const saved = localStorage.getItem('sathi_font_scale');
+    if (saved) document.documentElement.style.setProperty('--font-scale', saved);
+    const hc = localStorage.getItem('sathi_high_contrast');
+    if (hc === 'true') document.body.classList.add('high-contrast');
+
+    const bar = document.createElement('div');
+    bar.className = 'a11y-toolbar';
+    bar.setAttribute('role', 'toolbar');
+    bar.setAttribute('aria-label', 'Accessibility controls');
+    bar.innerHTML = `
+        <button class="a11y-btn" id="a11y-up" aria-label="Increase font size" title="Increase font size">A+</button>
+        <button class="a11y-btn" id="a11y-down" aria-label="Decrease font size" title="Decrease font size">A-</button>
+        <button class="a11y-btn ${hc === 'true' ? 'active' : ''}" id="a11y-hc" aria-label="Toggle high contrast" title="High contrast">HC</button>
+    `;
+    document.body.appendChild(bar);
+
+    document.getElementById('a11y-up').addEventListener('click', () => {
+        let s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--font-scale')) || 1;
+        s = Math.min(s + 0.15, 2);
+        document.documentElement.style.setProperty('--font-scale', s);
+        localStorage.setItem('sathi_font_scale', s);
+        speak('Font size increased', false);
+    });
+    document.getElementById('a11y-down').addEventListener('click', () => {
+        let s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--font-scale')) || 1;
+        s = Math.max(s - 0.15, 0.7);
+        document.documentElement.style.setProperty('--font-scale', s);
+        localStorage.setItem('sathi_font_scale', s);
+        speak('Font size decreased', false);
+    });
+    document.getElementById('a11y-hc').addEventListener('click', () => {
+        document.body.classList.toggle('high-contrast');
+        const on = document.body.classList.contains('high-contrast');
+        localStorage.setItem('sathi_high_contrast', on);
+        document.getElementById('a11y-hc').classList.toggle('active', on);
+        speak(on ? 'High contrast on' : 'High contrast off', false);
+    });
+};
+
+// ===== LOGIN SCREEN =====
+const showLoginScreen = () => {
+    let selectedRole = null;
+    app.innerHTML = `
+    <div class="login-screen" id="login-screen" role="dialog" aria-label="SATHI Login">
+        <div class="login-brand">
+            <div class="login-title">SATHI</div>
+            <div class="login-tagline">साथी — Your Accessibility Companion</div>
+        </div>
+        <div class="login-cards" role="group" aria-label="Select your role">
+            <div class="login-card" id="lc-user" tabindex="0" role="button" aria-label="I am the User, person with disability">
+                <span class="lc-icon">👤</span>
+                <span class="lc-title">I am the User</span>
+                <span class="lc-desc">Person with disability</span>
+            </div>
+            <div class="login-card" id="lc-guardian" tabindex="0" role="button" aria-label="I am a Guardian, family member or caregiver">
+                <span class="lc-icon">🛡️</span>
+                <span class="lc-title">I am a Guardian</span>
+                <span class="lc-desc">Family member or caregiver</span>
+            </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;max-width:400px;">
+            <input type="text" class="login-pin-input" id="login-pin" placeholder="Enter PIN (optional)" aria-label="Enter PIN" style="width:100%;border:2px solid #1A1A1A;background:#FFFFFF;padding:16px;font-size:0.9rem;font-family:'Work Sans',sans-serif;letter-spacing:2px;text-align:center;outline:none;">
+            <button class="login-continue-btn" id="login-continue" disabled aria-label="Continue">Continue →</button>
+            <span style="font-size:0.7rem;opacity:0.4;letter-spacing:1px;text-transform:uppercase;font-family:'Work Sans',sans-serif;color:#1A1A1A;">🔒 Your data stays on this device only</span>
+        </div>
+    </div>`;
+
+    // Voice announce
+    setTimeout(() => {
+        speak('Welcome to Sathi. Tap I am the User or I am a Guardian, then tap continue.', true);
+    }, 500);
+
+    const userCard = document.getElementById('lc-user');
+    const guardianCard = document.getElementById('lc-guardian');
+    const continueBtn = document.getElementById('login-continue');
+
+    const selectCard = (role) => {
+        selectedRole = role;
+        userCard.classList.toggle('selected', role === 'user');
+        guardianCard.classList.toggle('selected', role === 'guardian');
+        continueBtn.disabled = false;
+        continueBtn.textContent = role === 'guardian' ? 'Continue to Dashboard →' : 'Continue →';
+        speak(role === 'user' ? 'User selected' : 'Guardian selected', false);
+    };
+
+    userCard.addEventListener('click', () => selectCard('user'));
+    guardianCard.addEventListener('click', () => selectCard('guardian'));
+    userCard.addEventListener('keydown', (e) => { if (e.key === 'Enter') selectCard('user'); });
+    guardianCard.addEventListener('keydown', (e) => { if (e.key === 'Enter') selectCard('guardian'); });
+
+    continueBtn.addEventListener('click', () => {
+        if (!selectedRole) return;
+        localStorage.setItem('sathi_logged_in', 'true');
+        localStorage.setItem('sathi_role', selectedRole);
+        if (selectedRole === 'guardian') {
+            window.location.href = '/dashboard';
+        } else {
+            const ls = document.getElementById('login-screen');
+            if (ls) ls.remove();
+            const existing = loadProfile();
+            if (existing && existing.userType) {
+                launchCameraWithProfile(existing);
+            } else {
+                showOnboarding();
+            }
+        }
+    });
+};
+
+// ===== UPDATED goToCameraHUD — add LIVE indicator, conv feed, text input =====
+const _origGoToCameraHUD = goToCameraHUD;
+
 // ===== INIT =====
 const initApp = () => {
-    const existing = loadProfile();
-    if (existing && existing.userType) {
-        // Profile exists — skip onboarding, go straight to camera
-        launchCameraWithProfile(existing);
+    injectA11yToolbar();
+    setupRecognition();
+    startRecognition();
+    
+    const loggedIn = localStorage.getItem('sathi_logged_in');
+    if (loggedIn) {
+        const role = localStorage.getItem('sathi_role');
+        if (role === 'guardian') {
+            window.location.href = '/dashboard';
+            return;
+        }
+        const existing = loadProfile();
+        if (existing && existing.userType) {
+            launchCameraWithProfile(existing);
+        } else {
+            showOnboarding();
+        }
     } else {
-        showOnboarding();
+        showLoginScreen();
     }
 };
 
 initApp();
+

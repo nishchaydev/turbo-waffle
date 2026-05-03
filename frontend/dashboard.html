@@ -172,6 +172,15 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Expected Home Time -->
+                    <div class="bg-[#FFFFFF] p-8">
+                        <span class="font-label-caps block mb-4">EXPECTED HOME TIME</span>
+                        <div class="flex items-center gap-4">
+                            <input id="expected-home-time" type="time" value="18:00" class="flex-1 border-2 border-[#1A1A1A] p-3 text-sm outline-none focus:-translate-y-0.5 focus:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">
+                            <button id="btn-save-home-time" class="bg-[#1A1A1A] text-white px-4 py-3 font-label-caps text-[10px] tracking-widest hover:-translate-y-0.5 hover:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all">SAVE</button>
+                        </div>
+                        <span class="text-[10px] opacity-40 uppercase tracking-widest mt-2 block" id="home-time-status">Set when the user is expected home</span>
+                    </div>
                 </div>
             </div>
 
@@ -853,6 +862,33 @@
             loadGeofence();
         } catch (e) { alert('Failed to disable geofence.'); }
     });
+    // ===== EXPECTED HOME TIME =====
+    const loadHomeTime = () => {
+        const saved = profile?.guardian?.homeTime;
+        const input = document.getElementById('expected-home-time');
+        const statusEl = document.getElementById('home-time-status');
+        if (saved && input) {
+            input.value = saved;
+            statusEl.textContent = `Currently set to ${saved}`;
+        }
+    };
+
+    document.getElementById('btn-save-home-time').addEventListener('click', () => {
+        const time = document.getElementById('expected-home-time').value;
+        if (!time) return;
+        // Update profile in localStorage
+        try {
+            const p = JSON.parse(localStorage.getItem(PROFILE_KEY)) || {};
+            if (!p.guardian) p.guardian = {};
+            p.guardian.homeTime = time;
+            localStorage.setItem(PROFILE_KEY, JSON.stringify(p));
+            profile = p;
+            document.getElementById('home-time-status').textContent = `✓ Saved — Expected home at ${time}`;
+            speak(`Expected home time set to ${time}.`);
+        } catch (e) { console.error('Failed to save home time:', e); }
+    });
+
+    loadHomeTime();
 })();
 </script>
 </body>

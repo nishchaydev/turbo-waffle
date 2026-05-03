@@ -42,6 +42,12 @@
     <!-- Full-viewport app — no scroll -->
     <div id="app" class="w-full h-full" role="application" aria-label="SATHI Accessibility Companion"></div>
 
+    <!-- Global Mic Indicator -->
+    <div id="global-mic-indicator" class="fixed top-4 right-4 z-[20000] flex items-center gap-2 bg-[#1A1A1A] text-surface px-3 py-1.5 rounded-full shadow-brutal transition-all duration-300 transform -translate-y-[200%] opacity-0 pointer-events-none">
+        <div class="w-3 h-3 bg-error rounded-full animate-pulse"></div>
+        <span class="text-xs font-bold tracking-widest uppercase">LISTENING</span>
+    </div>
+
     <!-- TensorFlow.js and COCO-SSD for real-time bounding boxes -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
